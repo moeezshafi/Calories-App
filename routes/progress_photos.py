@@ -30,10 +30,8 @@ def upload_progress_photo():
         if not allowed_file(photo_file.filename):
             return error_response(ERROR_INVALID_FILE_TYPE, status_code=HTTP_BAD_REQUEST)
 
-        # Save file
-        upload_dir = os.path.join('uploads', 'progress_photos', str(user_id))
-        os.makedirs(upload_dir, exist_ok=True)
-        photo_path = save_uploaded_image(photo_file, upload_dir)
+        # Save file using the helper function
+        photo_path = save_uploaded_image(photo_file, user_id)
 
         # Get latest weight for context
         latest_weight = WeightLog.query.filter_by(user_id=user_id).order_by(

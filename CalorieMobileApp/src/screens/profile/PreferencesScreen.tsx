@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 import Toggle from '../../components/common/Toggle';
+import Header from '../../components/common/Header';
 import { useAppStore } from '../../store/appStore';
 import * as preferencesService from '../../services/preferences';
 
@@ -96,7 +97,6 @@ export default function PreferencesScreen() {
   };
 
   const themes: { key: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { key: 'system', label: t('preferences.system', { defaultValue: 'System' }), icon: 'phone-portrait-outline' },
     { key: 'light', label: t('preferences.light', { defaultValue: 'Light' }), icon: 'sunny-outline' },
     { key: 'dark', label: t('preferences.dark', { defaultValue: 'Dark' }), icon: 'moon-outline' },
   ];
@@ -104,19 +104,11 @@ export default function PreferencesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {t('profile.preferences', { defaultValue: 'Preferences' })}
-        </Text>
-        <View style={styles.headerRight} />
-      </View>
+      <Header
+        title={t('profile.preferences', { defaultValue: 'Preferences' })}
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -127,7 +119,7 @@ export default function PreferencesScreen() {
           {t('preferences.appearance', { defaultValue: 'Appearance' })}
         </Text>
         <Text style={styles.sectionDescription}>
-          {t('preferences.appearanceDesc', { defaultValue: 'Choose light, dark, or system appearance' })}
+          {t('preferences.appearanceDesc', { defaultValue: 'Choose light or dark appearance. Restart app to apply changes.' })}
         </Text>
 
         <View style={styles.themeRow}>

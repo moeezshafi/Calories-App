@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
 import { useAuthStore } from '../../store/authStore';
 import Card from '../../components/common/Card';
@@ -52,6 +53,7 @@ export default function ProgressScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
+  const updateUser = useAuthStore((s) => s.updateUser);
   const [refreshing, setRefreshing] = useState(false);
   const [timeFilter, setTimeFilter] = useState(0);
   const [weightPeriod, setWeightPeriod] = useState(0);
@@ -66,6 +68,7 @@ export default function ProgressScreen() {
   const [weekDays, setWeekDays] = useState<boolean[]>([false, false, false, false, false, false, false]);
   const [weightLogs, setWeightLogs] = useState<WeightLogEntry[]>([]);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+  const [badgeCount, setBadgeCount] = useState(0);
 
   // Weight logging modal states
   const [showWeightModal, setShowWeightModal] = useState(false);
@@ -82,6 +85,7 @@ export default function ProgressScreen() {
         analyticsService.getWeeklyAnalytics(),
         weightService.getWeightLogs(WEIGHT_PERIOD_DAYS[weightPeriod]),
         api.get('/api/progress-photos/'),
+        api.get('/api/badges/'),
       ]);
 
       // Streak: raw jsonify -- data IS the value directly
@@ -148,8 +152,16 @@ export default function ProgressScreen() {
       // Progress photos: success_response wrapper via axios -- data at .data.data.photos
       if (results[5].status === 'fulfilled') {
         const res = results[5].value;
-        const photos = res?.data?.data?.photos || [];
+        const photos = res?.data?.data?.photos || res?.data?.photos || [];
         setProgressPhotos(photos);
+      }
+
+      // Badges: get earned count
+      if (results[6].status === 'fulfilled') {
+        const res = results[6].value;
+        const badges = res?.data?.data?.badges || res?.data?.badges || [];
+        const earnedCount = badges.filter((b: any) => b.earned).length;
+        setBadgeCount(earnedCount);
       }
     } catch (e) {
       console.log('Progress fetch error:', e);
@@ -242,6 +254,8 @@ export default function ProgressScreen() {
     setSavingWeight(true);
     try {
       await weightService.logWeight(weight, weightNotes.trim() || undefined);
+      // Update user weight in store
+      updateUser({ weight });
       setShowWeightModal(false);
       setWeightInput('');
       setWeightNotes('');
@@ -308,8 +322,8 @@ export default function ProgressScreen() {
           <View style={styles.halfCard}>
             <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.navigate('Badges')}>
               <Card style={styles.badgeCard}>
-                <Text style={styles.badgeIcon}>{'🏆'}</Text>
-                <Text style={styles.badgeCount}>0</Text>
+                <Ionicons name="trophy" size={32} color={colors.accent} />
+                <Text style={styles.badgeCount}>{badgeCount}</Text>
                 <Text style={styles.badgeLabel}>{t('progress.badgesEarned')}</Text>
               </Card>
             </TouchableOpacity>

@@ -83,6 +83,27 @@ def get_daily_analytics(date_str):
             }
         }
         
+        # Calculate streak (only for today's date to avoid unnecessary computation)
+        streak = 0
+        if target_date == date.today():
+            year_ago = target_date - timedelta(days=365)
+            logged_dates = set(
+                row[0] for row in db.session.query(
+                    func.date(FoodLog.consumed_at)
+                ).filter(
+                    FoodLog.user_id == user_id,
+                    func.date(FoodLog.consumed_at) >= year_ago,
+                    func.date(FoodLog.consumed_at) <= target_date
+                ).distinct().all()
+            )
+
+            for i in range(365):
+                check_date = target_date - timedelta(days=i)
+                if str(check_date) in {str(d) for d in logged_dates}:
+                    streak += 1
+                else:
+                    break
+        
         response = {
             'date': date_str,
             'calorie_progress': calorie_progress,
@@ -97,7 +118,8 @@ def get_daily_analytics(date_str):
             },
             'macro_breakdown': macro_breakdown,
             'meal_breakdown': meal_breakdown,
-            'food_count': len(food_logs)
+            'food_count': len(food_logs),
+            'streak': streak
         }
         
         return jsonify(response), 200
@@ -150,11 +172,17 @@ def get_weekly_analytics():
             
             day_logs = [log for log in food_logs if log.consumed_at.date() == current_date]
             daily_calories = sum(log.total_calories() for log in day_logs)
+            daily_protein = sum(log.total_nutrients()['proteins'] for log in day_logs)
+            daily_carbs = sum(log.total_nutrients()['carbs'] for log in day_logs)
+            daily_fats = sum(log.total_nutrients()['fats'] for log in day_logs)
             
             daily_data[date_str] = {
                 'date': date_str,
                 'day_name': current_date.strftime('%A'),
                 'calories': round(daily_calories, 2),
+                'protein': round(daily_protein, 2),
+                'carbs': round(daily_carbs, 2),
+                'fats': round(daily_fats, 2),
                 'food_count': len(day_logs)
             }
         

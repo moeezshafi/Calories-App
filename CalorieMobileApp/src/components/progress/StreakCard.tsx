@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 import Card from '../common/Card';
 
@@ -19,7 +20,7 @@ export default function StreakCard({ streak, weekdays }: Props) {
       {/* Streak header */}
       <View style={styles.headerRow}>
         <View style={styles.streakInfo}>
-          <Text style={styles.fireIcon}>{'\uD83D\uDD25'}</Text>
+          <Ionicons name="flame" size={20} color={colors.warning} style={styles.fireIcon} />
           <Text style={styles.streakNumber}>{streak}</Text>
         </View>
         <Text style={styles.streakLabel}>

@@ -21,6 +21,7 @@ import { getDailyAnalytics } from '../../services/analytics';
 import { getFoodLogs } from '../../services/food';
 import { getDailyStepTotal } from '../../services/steps';
 import { getDailyWaterTotal, logWater } from '../../services/water';
+import { getDailyExerciseTotal } from '../../services/exercises';
 import { formatDate } from '../../utils/date';
 import { formatTime } from '../../utils/date';
 import { colors, typography, spacing, borderRadius } from '../../theme';
@@ -43,7 +44,7 @@ const MOTIVATIONAL_SUBTITLES = [
   'Fuel your body, feed your goals.',
 ];
 
-const PAGER_COUNT = 3;
+const PAGER_COUNT = 2;
 const WATER_INCREMENT_ML = 250;
 
 function getGreeting(hour: number): string {
@@ -68,6 +69,7 @@ export default function HomeScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [pageIndex, setPageIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Data state
   const [analytics, setAnalytics] = useState<DailyAnalytics | null>(null);
@@ -79,6 +81,9 @@ export default function HomeScreen() {
   const [waterData, setWaterData] = useState<{ total_ml: number }>({
     total_ml: 0,
   });
+  const [exerciseData, setExerciseData] = useState<{
+    total_calories_burned: number;
+  }>({ total_calories_burned: 0 });
   const [streak, setStreak] = useState(0);
 
   const dateStr = formatDate(selectedDate);
@@ -101,14 +106,16 @@ export default function HomeScreen() {
 
   const fetchData = useCallback(async () => {
     const date = formatDate(selectedDate);
+    setLoading(true);
 
     try {
-      const [analyticsRes, foodRes, stepsRes, waterRes] =
+      const [analyticsRes, foodRes, stepsRes, waterRes, exerciseRes] =
         await Promise.allSettled([
           getDailyAnalytics(date),
           getFoodLogs(date),
           getDailyStepTotal(date),
           getDailyWaterTotal(date),
+          getDailyExerciseTotal(date),
         ]);
 
       if (analyticsRes.status === 'fulfilled') {
@@ -140,8 +147,18 @@ export default function HomeScreen() {
           total_ml: data.total_ml || data.total || 0,
         });
       }
+
+      if (exerciseRes.status === 'fulfilled') {
+        const data = exerciseRes.value.data || exerciseRes.value;
+        setExerciseData({
+          total_calories_burned:
+            data.total_calories_burned || data.calories_burned || 0,
+        });
+      }
     } catch {
       // Silently handle -- individual settled promises are handled above
+    } finally {
+      setLoading(false);
     }
   }, [selectedDate]);
 
@@ -231,7 +248,12 @@ export default function HomeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      )}
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -251,37 +273,19 @@ export default function HomeScreen() {
               {greetingText}
               {firstName ? `, ${firstName}` : ''}
             </Text>
-            <Text style={styles.headerSubtitle}>{motivationalSubtitle}</Text>
+            {/* Show selected date if not today */}
+            {formatDate(selectedDate) !== formatDate(new Date()) && (
+              <Text style={styles.selectedDateText}>
+                {selectedDate.toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </Text>
+            )}
           </View>
           <StreakBadge count={streak} />
         </View>
-
-        {/* Quick Action Chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsContainer}
-          style={styles.chipsScroll}
-        >
-          {QUICK_ACTIONS.map((action) => (
-            <TouchableOpacity
-              key={action.key}
-              style={styles.chip}
-              activeOpacity={0.7}
-              onPress={() => handleQuickAction(action.key)}
-            >
-              <Ionicons
-                name={action.icon}
-                size={16}
-                color={colors.primary}
-                style={styles.chipIcon}
-              />
-              <Text style={styles.chipLabel}>
-                {t(action.labelKey, { defaultValue: action.key })}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         {/* Week Day Selector */}
         <WeekDaySelector
@@ -289,7 +293,7 @@ export default function HomeScreen() {
           onSelectDate={setSelectedDate}
         />
 
-        {/* Pager View: Calories / Steps / Water */}
+        {/* Pager View: Calories / Steps */}
         <View style={styles.pagerWrapper}>
           <PagerView
             ref={pagerRef}
@@ -310,6 +314,7 @@ export default function HomeScreen() {
                 fatGoal={fatGoal}
                 fiberConsumed={fiberConsumed}
                 sugarConsumed={sugarConsumed}
+                burnedCalories={stepsData.total_calories_burned + exerciseData.total_calories_burned}
               />
             </View>
 
@@ -321,20 +326,98 @@ export default function HomeScreen() {
                 caloriesBurned={stepsData.total_calories_burned}
               />
             </View>
-
-            {/* Page 2: Water */}
-            <View key="water" style={styles.pagerPage}>
-              <WaterCard
-                waterMl={waterData.total_ml}
-                onLogWater={handleLogWater}
-              />
-            </View>
           </PagerView>
         </View>
 
         {/* Pagination Dots */}
         <View style={styles.paginationContainer}>
           <PaginationDots count={PAGER_COUNT} activeIndex={pageIndex} />
+        </View>
+
+        {/* Quick Action Buttons - Redesigned */}
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.quickActionsTitle}>
+            {t('home.quickActions', { defaultValue: 'Quick Actions' })}
+          </Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('LogFood')}
+            >
+              <View style={[styles.quickActionIconWrapper, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="restaurant" size={22} color={colors.primary} />
+              </View>
+              <Text style={styles.quickActionLabel}>
+                {t('home.logFood', { defaultValue: 'Log Food' })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('CameraCapture')}
+            >
+              <View style={[styles.quickActionIconWrapper, { backgroundColor: colors.accent + '15' }]}>
+                <Ionicons name="camera" size={22} color={colors.accent} />
+              </View>
+              <Text style={styles.quickActionLabel}>
+                {t('home.scanFood', { defaultValue: 'Scan Food' })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              activeOpacity={0.7}
+              onPress={handleLogWater}
+            >
+              <View style={[styles.quickActionIconWrapper, { backgroundColor: colors.info + '15' }]}>
+                <Ionicons name="water" size={22} color={colors.info} />
+              </View>
+              <Text style={styles.quickActionLabel}>
+                {t('home.logWater', { defaultValue: 'Log Water' })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Progress')}
+            >
+              <View style={[styles.quickActionIconWrapper, { backgroundColor: colors.success + '15' }]}>
+                <Ionicons name="scale" size={22} color={colors.success} />
+              </View>
+              <Text style={styles.quickActionLabel}>
+                {t('home.logWeight', { defaultValue: 'Log Weight' })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Exercise')}
+            >
+              <View style={[styles.quickActionIconWrapper, { backgroundColor: colors.warning + '15' }]}>
+                <Ionicons name="barbell" size={22} color={colors.warning} />
+              </View>
+              <Text style={styles.quickActionLabel}>
+                {t('home.logExercise', { defaultValue: 'Exercise' })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('RecipeBuilder')}
+            >
+              <View style={[styles.quickActionIconWrapper, { backgroundColor: colors.error + '15' }]}>
+                <Ionicons name="book" size={22} color={colors.error} />
+              </View>
+              <Text style={styles.quickActionLabel}>
+                {t('home.recipes', { defaultValue: 'Recipes' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Recently Uploaded Section */}
@@ -375,7 +458,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: spacing['3xl'],
+    paddingBottom: 0,
   },
   header: {
     flexDirection: 'row',
@@ -394,49 +477,61 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.heavy,
     color: colors.textPrimary,
   },
-  headerSubtitle: {
-    fontSize: typography.sizes.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  chipsScroll: {
-    marginTop: spacing.xs,
-  },
-  chipsContainer: {
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    borderRadius: borderRadius.full,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  chipIcon: {
-    marginRight: spacing.xs,
-  },
-  chipLabel: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
-    color: colors.primary,
-  },
   pagerWrapper: {
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
+    overflow: 'visible',
   },
   pagerView: {
-    height: 280,
+    height: 480,
+    overflow: 'visible',
   },
   pagerPage: {
-    flex: 1,
+    paddingBottom: spacing.base,
+    overflow: 'visible',
   },
   paginationContainer: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  // Quick Actions Section
+  quickActionsSection: {
+    paddingHorizontal: spacing.base,
     marginTop: spacing.md,
+    marginBottom: spacing.md,
+  },
+  quickActionsTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
     marginBottom: spacing.sm,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  quickActionCard: {
+    width: '31%',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.sm,
+    alignItems: 'center',
+  },
+  quickActionIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  quickActionLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    color: colors.textPrimary,
+    textAlign: 'center',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -452,6 +547,32 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   foodListContent: {
-    paddingBottom: spacing.base,
+    paddingBottom: 100,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingText: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.semibold,
+    color: colors.surface,
+    backgroundColor: colors.textPrimary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.base,
+    borderRadius: borderRadius.lg,
+  },
+  selectedDateText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.accent,
+    marginTop: spacing.xs,
   },
 });

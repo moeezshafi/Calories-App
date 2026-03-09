@@ -19,20 +19,33 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
-*.log
-.coverage
-htmlcov/
-.pytest_cache/
-.env
+
+# Virtual Environment
 venv/
 ENV/
 env/
+
+# Flask
+instance/
+.webassets-cache
+
+# Environment variables
+.env
+.env.local
+.env.production
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
+
+# Uploads
+uploads/
+!uploads/.gitkeep
+
+# Logs
+*.log
+logs/
 
 # IDE
 .vscode/
@@ -45,21 +58,20 @@ env/
 .DS_Store
 Thumbs.db
 
-# Uploads
-uploads/
-logs/
+# Backups
+backups/
 
-# React Native
-CalorieMobileApp/node_modules/
-CalorieMobileApp/.expo/
-CalorieMobileApp/.expo-shared/
-CalorieMobileApp/dist/
-CalorieMobileApp/npm-debug.*
-CalorieMobileApp/yarn-error.log
-CalorieMobileApp/yarn.lock
-CalorieMobileApp/package-lock.json
-CalorieMobileApp/.DS_Store
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
 
-# Temporary files
-*.tmp
-*.temp
+# Migrations (keep the folder structure but not the versions)
+migrations/versions/*.py
+!migrations/versions/.gitkeep
+
+# Redis
+dump.rdb
+
+# Gunicorn
+*.pid

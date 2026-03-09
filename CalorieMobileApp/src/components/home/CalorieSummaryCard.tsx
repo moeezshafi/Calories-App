@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 import CircularProgress from '../common/CircularProgress';
 import Card from '../common/Card';
@@ -76,8 +77,9 @@ export default function CalorieSummaryCard({
           </Text>
           {burnedCalories > 0 && (
             <View style={styles.burnedRow}>
+              <Ionicons name="flame" size={14} color={colors.success} style={{ marginRight: 4 }} />
               <Text style={styles.burnedText}>
-                +{burnedCalories.toLocaleString()} {t('home.burned', { defaultValue: 'burned' })}
+                {burnedCalories.toLocaleString()} {t('home.burned', { defaultValue: 'burned' })}
               </Text>
             </View>
           )}
@@ -142,43 +144,52 @@ export default function CalorieSummaryCard({
         </View>
       </View>
 
-      {/* Macro row */}
-      <View style={styles.macroRow}>
-        <MacroColumn
-          label={t('nutrition.protein', { defaultValue: 'Protein' })}
-          consumed={proteinConsumed}
-          goal={proteinGoal}
-          progress={proteinProgress}
-          color={colors.protein}
-        />
-        <MacroColumn
-          label={t('nutrition.carbs', { defaultValue: 'Carbs' })}
-          consumed={carbsConsumed}
-          goal={carbsGoal}
-          progress={carbsProgress}
-          color={colors.carbs}
-        />
-        <MacroColumn
-          label={t('nutrition.fats', { defaultValue: 'Fats' })}
-          consumed={fatConsumed}
-          goal={fatGoal}
-          progress={fatProgress}
-          color={colors.fats}
-        />
-        <MacroColumn
-          label={t('nutrition.fiber', { defaultValue: 'Fiber' })}
-          consumed={fiberConsumed}
-          goal={25}
-          progress={fiberConsumed / 25}
-          color={colors.fiber || '#8B5CF6'}
-        />
-        <MacroColumn
-          label={t('nutrition.sugar', { defaultValue: 'Sugar' })}
-          consumed={sugarConsumed}
-          goal={50}
-          progress={sugarConsumed / 50}
-          color={colors.warning || '#F59E0B'}
-        />
+      {/* Macro rows - split into 2 rows */}
+      <View style={styles.macroContainer}>
+        {/* First row: Protein, Carbs, Fats */}
+        <View style={styles.macroRow}>
+          <MacroColumn
+            label={t('nutrition.protein', { defaultValue: 'Protein' })}
+            consumed={Math.round(proteinConsumed)}
+            goal={proteinGoal}
+            progress={proteinProgress}
+            color={colors.protein}
+          />
+          <MacroColumn
+            label={t('nutrition.carbs', { defaultValue: 'Carbs' })}
+            consumed={Math.round(carbsConsumed)}
+            goal={carbsGoal}
+            progress={carbsProgress}
+            color={colors.carbs}
+          />
+          <MacroColumn
+            label={t('nutrition.fats', { defaultValue: 'Fats' })}
+            consumed={Math.round(fatConsumed)}
+            goal={fatGoal}
+            progress={fatProgress}
+            color={colors.fats}
+          />
+        </View>
+        
+        {/* Second row: Fiber, Sugar */}
+        <View style={styles.macroRow}>
+          <MacroColumn
+            label={t('nutrition.fiber', { defaultValue: 'Fiber' })}
+            consumed={Math.round(fiberConsumed)}
+            goal={25}
+            progress={fiberConsumed / 25}
+            color={colors.fiber || '#8B5CF6'}
+          />
+          <MacroColumn
+            label={t('nutrition.sugar', { defaultValue: 'Sugar' })}
+            consumed={Math.round(sugarConsumed)}
+            goal={50}
+            progress={sugarConsumed / 50}
+            color={colors.warning || '#F59E0B'}
+          />
+          {/* Empty spacer to balance the row */}
+          <View style={styles.macroColumn} />
+        </View>
       </View>
     </Card>
   );
@@ -209,7 +220,7 @@ function MacroColumn({ label, consumed, goal, progress, color }: MacroColumnProp
       </CircularProgress>
       <Text style={styles.macroLabel}>{label}</Text>
       <Text style={styles.macroValue}>
-        {consumed}
+        {Math.round(consumed)}
         <Text style={styles.macroGoal}> / {goal}g</Text>
       </Text>
       {/* Linear progress bar */}
@@ -232,16 +243,19 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: spacing.base,
     marginTop: spacing.sm,
+    marginBottom: spacing.base,
+    overflow: 'visible',
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.md,
   },
   calorieTextSection: {
     flex: 1,
     marginRight: spacing.base,
+    justifyContent: 'center',
   },
   calorieNumber: {
     fontSize: typography.sizes['3xl'],
@@ -278,14 +292,17 @@ const styles = StyleSheet.create({
   /* ---- Eaten / Left badges ---- */
   badgeRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
     marginBottom: spacing.base,
+    paddingHorizontal: spacing.xs,
   },
   badge: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.full,
   },
@@ -303,13 +320,18 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
   },
 
-  /* ---- Macro row ---- */
+  /* ---- Macro container and rows ---- */
+  macroContainer: {
+    gap: spacing.base,
+    paddingBottom: spacing.lg,
+  },
   macroRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     borderTopWidth: 1,
     borderTopColor: colors.divider,
     paddingTop: spacing.base,
+    paddingBottom: spacing.sm,
   },
   macroColumn: {
     alignItems: 'center',

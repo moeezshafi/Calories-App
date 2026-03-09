@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { colors, typography, spacing, borderRadius } from '../../theme';
@@ -9,13 +9,17 @@ interface Props {
   calories: number;
   serving: string;
   onAdd: () => void;
+  imageUri?: string;
 }
 
-export default function FoodSearchItem({ name, calories, serving, onAdd }: Props) {
+export default function FoodSearchItem({ name, calories, serving, onAdd, imageUri }: Props) {
   const { t } = useTranslation();
 
   return (
     <View style={styles.container}>
+      {imageUri && (
+        <Image source={{ uri: imageUri }} style={styles.thumbnail} />
+      )}
       <View style={styles.textSection}>
         <Text style={styles.name} numberOfLines={1}>
           {name}
@@ -25,7 +29,7 @@ export default function FoodSearchItem({ name, calories, serving, onAdd }: Props
           <Text style={styles.calories}>
             {' '}{calories} {t('nutrition.cal', { defaultValue: 'cal' })}
           </Text>
-          <Text style={styles.dot}> {'\u00B7'} </Text>
+          <Text style={styles.dot}> • </Text>
           <Text style={styles.serving}>{serving}</Text>
         </View>
       </View>
@@ -49,6 +53,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
+  },
+  thumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.sm,
+    marginRight: spacing.md,
+    backgroundColor: colors.background,
   },
   textSection: {
     flex: 1,

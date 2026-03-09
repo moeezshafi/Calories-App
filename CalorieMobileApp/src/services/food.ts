@@ -55,3 +55,13 @@ export const deleteSavedFood = async (id: number) => {
   const { data } = await api.delete(`/api/food/saved/${id}`);
   return data;
 };
+
+export const getCustomFoods = async () => {
+  const { data } = await api.get('/api/user/custom-foods');
+  return data;
+};
+
+export const createCustomFood = async (foodData: any) => {
+  const { data } = await api.post('/api/food/custom', foodData);
+  return data;
+};

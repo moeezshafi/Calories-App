@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 import { useAuthStore } from '../../store/authStore';
+import Header from '../../components/common/Header';
 import * as authService from '../../services/auth';
 import * as preferencesService from '../../services/preferences';
 import { DEFAULT_STEP_GOAL } from '../../config/constants';
@@ -159,19 +160,11 @@ export default function PersonalDetailsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {t('profile.personalDetails', { defaultValue: 'Personal Details' })}
-        </Text>
-        <View style={styles.headerRight} />
-      </View>
+      <Header
+        title={t('profile.personalDetails', { defaultValue: 'Personal Details' })}
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -268,28 +261,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 56,
-    paddingHorizontal: spacing.base,
-    backgroundColor: colors.surface,
-  },
-  backButton: {
-    padding: spacing.xs,
-    marginLeft: -spacing.xs,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
-    color: colors.textPrimary,
-  },
-  headerRight: {
-    width: 40,
   },
   scrollContent: {
     padding: spacing.base,

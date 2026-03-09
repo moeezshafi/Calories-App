@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 import Toggle from '../../components/common/Toggle';
+import Header from '../../components/common/Header';
 import * as preferencesService from '../../services/preferences';
+import * as notificationService from '../../services/notifications';
 
 interface MealReminderState {
   breakfast: { time: string; enabled: boolean };
@@ -33,10 +36,17 @@ export default function TrackingRemindersScreen() {
     dinner: { time: '6:00 PM', enabled: true },
   });
   const [endOfDay, setEndOfDay] = useState({ time: '9:00 PM', enabled: false });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   useEffect(() => {
     loadReminders();
+    checkNotificationPermissions();
   }, []);
+
+  const checkNotificationPermissions = async () => {
+    const enabled = await notificationService.areNotificationsEnabled();
+    setNotificationsEnabled(enabled);
+  };
 
   const to12h = (time24: string): string => {
     if (!time24 || time24.includes('AM') || time24.includes('PM')) return time24;
@@ -112,8 +122,43 @@ export default function TrackingRemindersScreen() {
         { meal_type: 'end_of_day', reminder_time: to24h(eod.time), enabled: eod.enabled },
       ];
       await preferencesService.updateReminders(reminders);
+      
+      // Schedule notifications if permissions are granted
+      if (notificationsEnabled) {
+        await notificationService.scheduleReminders(reminders);
+      }
     } catch {
       // Silently fail
+    }
+  };
+
+  const handleRequestPermissions = async () => {
+    const granted = await notificationService.requestNotificationPermissions();
+    setNotificationsEnabled(granted);
+    
+    if (granted) {
+      // Schedule reminders immediately after granting permissions
+      const reminders = [
+        { meal_type: 'breakfast', reminder_time: to24h(mealReminders.breakfast.time), enabled: mealReminders.breakfast.enabled },
+        { meal_type: 'lunch', reminder_time: to24h(mealReminders.lunch.time), enabled: mealReminders.lunch.enabled },
+        { meal_type: 'snack', reminder_time: to24h(mealReminders.snack.time), enabled: mealReminders.snack.enabled },
+        { meal_type: 'dinner', reminder_time: to24h(mealReminders.dinner.time), enabled: mealReminders.dinner.enabled },
+        { meal_type: 'end_of_day', reminder_time: to24h(endOfDay.time), enabled: endOfDay.enabled },
+      ];
+      await notificationService.scheduleReminders(reminders);
+      Alert.alert(
+        t('reminders.permissionsGranted', { defaultValue: 'Notifications Enabled' }),
+        t('reminders.permissionsGrantedDesc', { defaultValue: 'You will now receive tracking reminders at your scheduled times.' })
+      );
+    } else {
+      Alert.alert(
+        t('reminders.permissionsDenied', { defaultValue: 'Permissions Required' }),
+        t('reminders.permissionsDeniedDesc', { defaultValue: 'Please enable notifications in your device settings to receive reminders.' }),
+        [
+          { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+          { text: t('common.settings', { defaultValue: 'Settings' }), onPress: () => Linking.openSettings() },
+        ]
+      );
     }
   };
 
@@ -127,36 +172,59 @@ export default function TrackingRemindersScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleSpace} />
-        <View style={styles.headerRight} />
-      </View>
+      <Header
+        title={t('profile.trackingReminders', { defaultValue: 'Tracking Reminders' })}
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Notification Status Banner */}
-        <View style={styles.notificationBanner}>
-          <Ionicons
-            name="notifications-off-outline"
-            size={20}
-            color={colors.textSecondary}
-            style={styles.bannerIcon}
-          />
-          <Text style={styles.bannerText}>
-            {t('reminders.notificationsDisabled', {
-              defaultValue: 'Notifications are currently disabled. Enable them in your device settings to receive tracking reminders.',
-            })}
-          </Text>
-        </View>
+        {!notificationsEnabled && (
+          <TouchableOpacity
+            style={styles.notificationBanner}
+            onPress={handleRequestPermissions}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="notifications-off-outline"
+              size={20}
+              color={colors.warning}
+              style={styles.bannerIcon}
+            />
+            <View style={styles.bannerTextContainer}>
+              <Text style={styles.bannerText}>
+                {t('reminders.notificationsDisabled', {
+                  defaultValue: 'Notifications are currently disabled. Tap to enable them and receive tracking reminders.',
+                })}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
+
+        {notificationsEnabled && (
+          <View style={styles.notificationEnabledBanner}>
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={colors.success}
+              style={styles.bannerIcon}
+            />
+            <Text style={styles.bannerEnabledText}>
+              {t('reminders.notificationsEnabled', {
+                defaultValue: 'Notifications are enabled. You will receive reminders at your scheduled times.',
+              })}
+            </Text>
+          </View>
+        )}
 
         {/* Section Title */}
         <Text style={styles.sectionTitle}>
@@ -241,11 +309,21 @@ const styles = StyleSheet.create({
   // Notification Banner
   notificationBanner: {
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    padding: spacing.base,
+    marginBottom: spacing.xl,
+  },
+  notificationEnabledBanner: {
+    flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.success,
     padding: spacing.base,
     marginBottom: spacing.xl,
   },
@@ -253,7 +331,16 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
     marginTop: 2,
   },
+  bannerTextContainer: {
+    flex: 1,
+  },
   bannerText: {
+    flex: 1,
+    fontSize: typography.sizes.sm,
+    color: colors.textPrimary,
+    lineHeight: typography.sizes.sm * typography.lineHeights.relaxed,
+  },
+  bannerEnabledText: {
     flex: 1,
     fontSize: typography.sizes.sm,
     color: colors.textSecondary,

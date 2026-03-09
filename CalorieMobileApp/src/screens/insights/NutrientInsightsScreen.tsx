@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
 import Card from '../../components/common/Card';
 import * as analyticsService from '../../services/analytics';
@@ -39,6 +41,7 @@ interface WeeklyData {
 
 export default function NutrientInsightsScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<TimePeriod>('thisWeek');
@@ -95,7 +98,7 @@ export default function NutrientInsightsScreen() {
   // Derived data
   const averages = data?.weekly_averages || {};
   const avgCalories = Math.round(averages.avg_calories || 0);
-  const avgProtein = Math.round(averages.avg_protein || 0);
+  const avgProtein = Math.round(averages.avg_proteins || 0);
   const avgCarbs = Math.round(averages.avg_carbs || 0);
   const avgFats = Math.round(averages.avg_fats || 0);
 
@@ -160,10 +163,20 @@ export default function NutrientInsightsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header */}
-        <Text style={styles.title}>
-          {t('insights.title', { defaultValue: 'Nutrition Insights' })}
-        </Text>
+        {/* Header with Back Button */}
+        <View style={styles.headerContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.title}>
+            {t('insights.title', { defaultValue: 'Nutrition Insights' })}
+          </Text>
+          <View style={styles.backButton} />
+        </View>
 
         {/* Time Period Toggle */}
         <View style={styles.filterRow}>
@@ -326,17 +339,22 @@ export default function NutrientInsightsScreen() {
         {/* AI Insights */}
         <Card style={styles.sectionCard}>
           <View style={styles.aiInsightsHeader}>
-            <Text style={styles.sectionTitle}>
-              🤖 {t('insights.aiInsights', { defaultValue: 'AI Insights' })}
-            </Text>
+            <View style={styles.aiInsightsHeaderLeft}>
+              <Ionicons name="sparkles" size={20} color={colors.primary} />
+              <Text style={styles.sectionTitle}>
+                {t('insights.aiInsights', { defaultValue: 'AI Insights' })}
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={fetchAIInsights}
               disabled={loadingInsights}
               style={styles.refreshInsightsBtn}
             >
-              <Text style={styles.refreshInsightsText}>
-                {loadingInsights ? '⏳' : '🔄'}
-              </Text>
+              <Ionicons 
+                name={loadingInsights ? "hourglass" : "refresh"} 
+                size={20} 
+                color={colors.primary} 
+              />
             </TouchableOpacity>
           </View>
 
@@ -348,7 +366,9 @@ export default function NutrientInsightsScreen() {
               </Text>
             </View>
           ) : aiInsights ? (
-            <Text style={styles.aiInsightsText}>{aiInsights}</Text>
+            <Text style={styles.aiInsightsText}>
+              {aiInsights.replace(/\*\*/g, '').replace(/\*/g, '')}
+            </Text>
           ) : (
             <TouchableOpacity
               style={styles.getInsightsBtn}
@@ -378,13 +398,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     paddingBottom: spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: typography.sizes['2xl'],
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
   },
 
   // ---- Filter Chips ----
@@ -557,11 +590,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.md,
   },
+  aiInsightsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
   refreshInsightsBtn: {
     padding: spacing.xs,
-  },
-  refreshInsightsText: {
-    fontSize: typography.sizes.xl,
   },
   insightsLoading: {
     flexDirection: 'row',

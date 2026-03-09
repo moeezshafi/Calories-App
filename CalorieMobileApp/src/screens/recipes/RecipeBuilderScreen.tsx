@@ -6,8 +6,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
 import Card from '../../components/common/Card';
+import Header from '../../components/common/Header';
 import api from '../../services/api';
 import * as recipesService from '../../services/recipes';
 
@@ -34,6 +37,7 @@ interface Recipe {
 
 export default function RecipeBuilderScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -78,8 +82,8 @@ export default function RecipeBuilderScreen() {
   const openEditor = (recipe?: Recipe) => {
     if (recipe) {
       setEditingRecipeId(recipe.id);
-      setRecipeName(recipe.name);
-      setServings(recipe.servings.toString());
+      setRecipeName(recipe.name || '');
+      setServings(recipe.servings ? recipe.servings.toString() : '1');
       setIngredients(recipe.ingredients || []);
     } else {
       setEditingRecipeId(null);
@@ -226,15 +230,17 @@ export default function RecipeBuilderScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <Header
+        title={t('recipes.title', { defaultValue: 'Recipes' })}
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
+      
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header */}
-        <Text style={styles.title}>
-          {t('recipes.title', { defaultValue: 'Recipes' })}
-        </Text>
-
         {/* Recipe List */}
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -242,7 +248,7 @@ export default function RecipeBuilderScreen() {
           </View>
         ) : recipes.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>{'\uD83D\uDCD6'}</Text>
+            <Ionicons name="book-outline" size={48} color={colors.textTertiary} style={{ marginBottom: spacing.sm, opacity: 0.4 }} />
             <Text style={styles.emptyText}>
               {t('recipes.noRecipes', { defaultValue: 'No recipes yet.\nCreate your first recipe below!' })}
             </Text>
@@ -259,13 +265,13 @@ export default function RecipeBuilderScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={styles.recipeIconContainer}>
-                    <Text style={styles.recipeIcon}>{'\uD83D\uDCD6'}</Text>
+                    <Ionicons name="book" size={24} color={colors.primary} />
                   </View>
                   <View style={styles.recipeInfo}>
                     <Text style={styles.recipeName} numberOfLines={1}>{recipe.name}</Text>
                     <Text style={styles.recipeMeta}>
                       {calPerServing} {t('recipes.calPerServing', { defaultValue: 'cal/serving' })}
-                      {'  \u00B7  '}
+                      {' • '}
                       {ingredientCount} {t('recipes.ingredients', { defaultValue: 'ingredients' })}
                     </Text>
                   </View>
@@ -276,8 +282,9 @@ export default function RecipeBuilderScreen() {
                     onPress={() => openEditor(recipe)}
                     activeOpacity={0.7}
                   >
+                    <Ionicons name="pencil" size={16} color={colors.primary} style={{ marginRight: 4 }} />
                     <Text style={styles.recipeActionText}>
-                      ✏️ {t('common.edit', { defaultValue: 'Edit' })}
+                      {t('common.edit', { defaultValue: 'Edit' })}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -285,8 +292,9 @@ export default function RecipeBuilderScreen() {
                     onPress={() => handleDeleteRecipe(recipe.id, recipe.name)}
                     activeOpacity={0.7}
                   >
+                    <Ionicons name="trash-outline" size={16} color={colors.error} style={{ marginRight: 4 }} />
                     <Text style={[styles.recipeActionText, styles.recipeDeleteText]}>
-                      🗑️ {t('common.delete', { defaultValue: 'Delete' })}
+                      {t('common.delete', { defaultValue: 'Delete' })}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -317,14 +325,17 @@ export default function RecipeBuilderScreen() {
         transparent={false}
         onRequestClose={() => setShowEditor(false)}
       >
-        <SafeAreaView style={styles.editorContainer} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.editorContainer} edges={['top']}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
           >
             {/* Editor Header */}
             <View style={styles.editorHeader}>
-              <TouchableOpacity onPress={() => setShowEditor(false)}>
+              <TouchableOpacity 
+                onPress={() => setShowEditor(false)}
+                style={styles.editorCancelButton}
+              >
                 <Text style={styles.editorCancel}>
                   {t('common.cancel', { defaultValue: 'Cancel' })}
                 </Text>
@@ -334,7 +345,7 @@ export default function RecipeBuilderScreen() {
                   ? t('recipes.editRecipe', { defaultValue: 'Edit Recipe' })
                   : t('recipes.newRecipe', { defaultValue: 'New Recipe' })}
               </Text>
-              <View style={{ width: 60 }} />
+              <View style={styles.editorHeaderRight} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.editorScroll}>
@@ -375,7 +386,7 @@ export default function RecipeBuilderScreen() {
                   <View style={styles.ingredientInfo}>
                     <Text style={styles.ingredientName} numberOfLines={1}>{ing.food_name}</Text>
                     <Text style={styles.ingredientMeta}>
-                      {ing.amount_g}g  \u00B7  {ing.calories} cal  \u00B7  P:{ing.protein}g  C:{ing.carbs}g  F:{ing.fats}g
+                      {ing.amount_g}g • {ing.calories} cal • P:{ing.protein}g C:{ing.carbs}g F:{ing.fats}g
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -584,14 +595,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing['3xl'],
   },
-  title: {
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.md,
-  },
 
   // ---- Recipe List ----
   recipeCard: {
@@ -611,9 +614,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
-  },
-  recipeIcon: {
-    fontSize: 24,
   },
   recipeInfo: {
     flex: 1,
@@ -638,11 +638,13 @@ const styles = StyleSheet.create({
   },
   recipeActionBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.sm,
     backgroundColor: colors.primary + '15',
-    alignItems: 'center',
   },
   recipeDeleteBtn: {
     backgroundColor: colors.error + '15',
@@ -661,11 +663,6 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.base,
     alignItems: 'center',
     paddingVertical: spacing.xl,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-    opacity: 0.4,
   },
   emptyText: {
     fontSize: typography.sizes.base,
@@ -707,13 +704,17 @@ const styles = StyleSheet.create({
   },
   editorHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    height: 56,
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
+  },
+  editorCancelButton: {
+    width: 60,
+    height: 40,
+    justifyContent: 'center',
   },
   editorCancel: {
     fontSize: typography.sizes.base,
@@ -721,9 +722,14 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   editorTitle: {
+    flex: 1,
+    textAlign: 'center',
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
+  },
+  editorHeaderRight: {
+    width: 60,
   },
   editorScroll: {
     flex: 1,
@@ -898,10 +904,11 @@ const styles = StyleSheet.create({
   // ---- Editor Footer ----
   editorFooter: {
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
   },
   saveRecipeBtn: {
     height: 52,

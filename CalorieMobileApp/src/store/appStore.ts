@@ -8,7 +8,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  theme: 'system',
+  theme: 'light',
   language: 'en',
   setTheme: (theme) => set({ theme }),
   setLanguage: (language) => set({ language }),

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl,
-  Dimensions, ActivityIndicator,
+  Dimensions, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
 import Card from '../../components/common/Card';
 import api from '../../services/api';
@@ -22,19 +24,20 @@ interface Badge {
   earned_at?: string;
 }
 
-const BADGE_DEFINITIONS: { id: string; name: string; description: string; icon: string }[] = [
-  { id: 'first_log', name: 'First Bite', description: 'Log your first food', icon: '\uD83C\uDF7D\uFE0F' },
-  { id: 'streak_7', name: 'Week Warrior', description: '7-day logging streak', icon: '\uD83D\uDD25' },
-  { id: 'streak_30', name: 'Monthly Master', description: '30-day logging streak', icon: '\u2B50' },
-  { id: 'water_warrior', name: 'Water Warrior', description: 'Log water 7 days straight', icon: '\uD83D\uDCA7' },
-  { id: 'century', name: 'Century Club', description: 'Log 100 food items', icon: '\uD83D\uDCAF' },
-  { id: 'photo_first', name: 'Selfie Star', description: 'Upload first progress photo', icon: '\uD83D\uDCF8' },
-  { id: 'weight_tracker', name: 'Scale Champion', description: 'Log weight 5 times', icon: '\u2696\uFE0F' },
-  { id: 'macro_master', name: 'Macro Master', description: 'Hit protein goal 7 days', icon: '\uD83D\uDCAA' },
+const BADGE_DEFINITIONS: { id: string; name: string; description: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'first_log', name: 'First Bite', description: 'Log your first food', icon: 'restaurant' },
+  { id: 'streak_7', name: 'Week Warrior', description: '7-day logging streak', icon: 'flame' },
+  { id: 'streak_30', name: 'Monthly Master', description: '30-day logging streak', icon: 'star' },
+  { id: 'water_warrior', name: 'Water Warrior', description: 'Log water 7 days straight', icon: 'water' },
+  { id: 'century', name: 'Century Club', description: 'Log 100 food items', icon: 'trophy' },
+  { id: 'photo_first', name: 'Selfie Star', description: 'Upload first progress photo', icon: 'camera' },
+  { id: 'weight_tracker', name: 'Scale Champion', description: 'Log weight 5 times', icon: 'scale' },
+  { id: 'macro_master', name: 'Macro Master', description: 'Hit protein goal 7 days', icon: 'fitness' },
 ];
 
 export default function BadgesScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [earnedIds, setEarnedIds] = useState<Set<string>>(new Set());
@@ -90,14 +93,24 @@ export default function BadgesScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header */}
-        <Text style={styles.title}>
-          {t('badges.title', { defaultValue: 'Badges' })}
-        </Text>
+        {/* Header with Back Button */}
+        <View style={styles.headerContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.title}>
+            {t('badges.title', { defaultValue: 'Badges' })}
+          </Text>
+          <View style={styles.backButton} />
+        </View>
 
         {/* Earned Count */}
         <Card style={styles.summaryCard}>
-          <Text style={styles.summaryIcon}>{'\uD83C\uDFC6'}</Text>
+          <Ionicons name="trophy" size={40} color={colors.accent} style={styles.summaryIcon} />
           <Text style={styles.summaryText}>
             {earnedCount} / {totalCount} {t('badges.badgesEarned', { defaultValue: 'Badges Earned' })}
           </Text>
@@ -120,9 +133,13 @@ export default function BadgesScreen() {
                 key={badge.id}
                 style={[styles.badgeCard, !earned && styles.badgeCardLocked]}
               >
-                <Text style={[styles.badgeIcon, !earned && styles.badgeIconLocked]}>
-                  {badge.icon}
-                </Text>
+                <View style={[styles.badgeIconContainer, !earned && styles.badgeIconLocked]}>
+                  <Ionicons 
+                    name={badge.icon} 
+                    size={32} 
+                    color={earned ? colors.accent : colors.textTertiary} 
+                  />
+                </View>
                 <Text
                   style={[styles.badgeName, !earned && styles.badgeTextLocked]}
                   numberOfLines={1}
@@ -163,13 +180,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     paddingBottom: spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: typography.sizes['2xl'],
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
   },
 
   // ---- Summary Card ----
@@ -180,7 +210,6 @@ const styles = StyleSheet.create({
     ...shadows.base,
   },
   summaryIcon: {
-    fontSize: 40,
     marginBottom: spacing.sm,
   },
   summaryText: {
@@ -219,12 +248,18 @@ const styles = StyleSheet.create({
   badgeCardLocked: {
     opacity: 0.5,
   },
-  badgeIcon: {
-    fontSize: 40,
+  badgeIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.accent + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: spacing.sm,
   },
   badgeIconLocked: {
-    opacity: 0.4,
+    opacity: 0.3,
+    backgroundColor: colors.surfaceBorder,
   },
   badgeName: {
     fontSize: typography.sizes.base,

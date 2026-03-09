@@ -76,6 +76,7 @@ class RecipeIngredient(db.Model):
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
     food_name = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.String(100))  # e.g. "200g", "1 cup"
+    amount_g = db.Column(db.Float, default=0)  # Amount in grams
     calories = db.Column(db.Float, default=0)
     protein = db.Column(db.Float, default=0)
     carbs = db.Column(db.Float, default=0)
@@ -87,6 +88,7 @@ class RecipeIngredient(db.Model):
             'recipe_id': self.recipe_id,
             'food_name': self.food_name,
             'amount': self.amount,
+            'amount_g': self.amount_g,
             'calories': self.calories,
             'protein': self.protein,
             'carbs': self.carbs,
@@ -129,6 +131,7 @@ def create_recipe():
                 recipe_id=recipe.id,
                 food_name=ing['food_name'],
                 amount=ing.get('amount'),
+                amount_g=ing.get('amount_g', 0),
                 calories=ing.get('calories', 0),
                 protein=ing.get('protein', 0),
                 carbs=ing.get('carbs', 0),
@@ -137,11 +140,17 @@ def create_recipe():
             db.session.add(ingredient)
 
         db.session.commit()
+        
+        # Query the recipe again to get it with relationships loaded
+        recipe = Recipe.query.get(recipe.id)
 
         return success_response('Recipe created', data=recipe.to_dict(), status_code=HTTP_CREATED)
 
     except Exception as e:
         db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        print(f"Recipe creation error: {str(e)}")
         return error_response('Failed to create recipe', errors=str(e), status_code=HTTP_INTERNAL_SERVER_ERROR)
 
 
@@ -174,7 +183,7 @@ def list_recipes():
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         
         return success_response('Recipes retrieved', data={
-            'recipes': [r.to_dict(include_ingredients=False) for r in pagination.items],
+            'recipes': [r.to_dict(include_ingredients=True) for r in pagination.items],
             'pagination': {
                 'page': page,
                 'per_page': per_page,

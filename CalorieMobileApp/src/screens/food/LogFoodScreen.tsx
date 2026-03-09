@@ -23,7 +23,7 @@ import SearchBar from '../../components/common/SearchBar';
 import { MEAL_TYPES } from '../../config/constants';
 import * as foodService from '../../services/food';
 
-const TABS = ['All', 'My foods', 'My meals', 'Saved foods'];
+const TABS = ['All', 'My foods'];
 
 interface SuggestionItem {
   id?: number;
@@ -46,7 +46,7 @@ export default function LogFoodScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [savedFoods, setSavedFoods] = useState<SuggestionItem[]>([]);
-  const [myFoods, setMyFoods] = useState<SuggestionItem[]>([]);
+  const [myFoods, setMyFoods] = useState<any[]>([]); // Changed to any[] to hold food logs
   const [searchResults, setSearchResults] = useState<SuggestionItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
@@ -63,7 +63,6 @@ export default function LogFoodScreen() {
 
   useEffect(() => {
     loadSuggestions();
-    loadSavedFoods();
     loadMyFoods();
   }, []);
 
@@ -108,17 +107,10 @@ export default function LogFoodScreen() {
 
   const loadMyFoods = async () => {
     try {
-      const data = await foodService.getFoodLogs();
-      const rawItems = data?.data?.logs || data?.logs || (Array.isArray(data) ? data : []);
-      const items = rawItems.map((item: any) => ({
-        ...item,
-        food_name: item.food_name || item.name,
-        calories: item.calories || item.total_calories || 0,
-        proteins: item.proteins || item.total_protein || 0,
-        carbs: item.carbs || item.total_carbs || 0,
-        fats: item.fats || item.total_fats || 0,
-      }));
-      setMyFoods(items);
+      // Load ALL food logs instead of just custom foods
+      const data = await foodService.getFoodLogs(undefined, 100); // Get last 100 logs
+      const rawItems = data?.food_logs || data?.data?.food_logs || data?.data?.logs || data?.logs || data?.data || data || [];
+      setMyFoods(Array.isArray(rawItems) ? rawItems : []);
     } catch {
       setMyFoods([]);
     }
@@ -168,30 +160,60 @@ export default function LogFoodScreen() {
     }, 400);
   }, []);
 
-  const handleAddFood = (item: SuggestionItem) => {
-    navigation.navigate('NutritionDetail', {
-      analysis: {
-        food_name: item.food_name,
-        total_calories: item.calories,
-        total_protein: item.proteins || 0,
-        total_carbs: item.carbs || 0,
-        total_fats: item.fats || 0,
-        fiber: item.fiber || 0,
-        sugar: item.sugar || 0,
-        sodium: item.sodium || 0,
-        health_score: 7,
-        health_score_reasons: [],
-        ingredients: [],
-        serving_count: 1,
-        confidence: 1,
-        is_food: true,
-        labels: [item.food_name],
-        breakdown: [{ name: item.food_name, calories: item.calories }],
-      },
-    });
+  const handleAddFood = (item: SuggestionItem | any) => {
+    // Check if this is a food log (has consumed_at, total_calories) or a suggestion
+    const isFoodLog = item.consumed_at || item.total_calories !== undefined;
+    
+    if (isFoodLog) {
+      // Navigate to nutrition detail with food log data
+      navigation.navigate('NutritionDetail', {
+        analysis: {
+          food_name: item.food_name,
+          total_calories: item.total_calories || item.calories,
+          total_protein: item.total_nutrients?.proteins || item.proteins || 0,
+          total_carbs: item.total_nutrients?.carbs || item.carbs || 0,
+          total_fats: item.total_nutrients?.fats || item.fats || 0,
+          fiber: item.total_nutrients?.fiber || item.fiber || 0,
+          sugar: item.total_nutrients?.sugars || item.sugar || 0,
+          sodium: item.total_nutrients?.sodium || item.sodium || 0,
+          health_score: 7,
+          health_score_reasons: [],
+          ingredients: [],
+          serving_count: item.servings_consumed || 1,
+          confidence: 1,
+          is_food: true,
+          labels: [item.food_name],
+          breakdown: [{ name: item.food_name, calories: item.total_calories || item.calories }],
+          meal_type: item.meal_type,
+        },
+        imageUri: item.image_path,
+      });
+    } else {
+      // Regular suggestion item
+      navigation.navigate('NutritionDetail', {
+        analysis: {
+          food_name: item.food_name,
+          total_calories: item.calories,
+          total_protein: item.proteins || 0,
+          total_carbs: item.carbs || 0,
+          total_fats: item.fats || 0,
+          fiber: item.fiber || 0,
+          sugar: item.sugar || 0,
+          sodium: item.sodium || 0,
+          health_score: 7,
+          health_score_reasons: [],
+          ingredients: [],
+          serving_count: 1,
+          confidence: 1,
+          is_food: true,
+          labels: [item.food_name],
+          breakdown: [{ name: item.food_name, calories: item.calories }],
+        },
+      });
+    }
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if (!manualName.trim()) {
       Alert.alert(t('common.error', { defaultValue: 'Error' }), t('food.enterName', { defaultValue: 'Please enter a food name.' }));
       return;
@@ -199,6 +221,22 @@ export default function LogFoodScreen() {
     if (!manualCalories.trim() || isNaN(Number(manualCalories))) {
       Alert.alert(t('common.error', { defaultValue: 'Error' }), t('food.enterCalories', { defaultValue: 'Please enter valid calories.' }));
       return;
+    }
+
+    // Save as custom food
+    try {
+      await foodService.createCustomFood({
+        name: manualName.trim(),
+        calories_per_100g: Number(manualCalories),
+        proteins_per_100g: Number(manualProtein) || 0,
+        carbs_per_100g: Number(manualCarbs) || 0,
+        fats_per_100g: Number(manualFats) || 0,
+        default_serving_size: 100,
+      });
+      // Reload custom foods
+      loadMyFoods();
+    } catch (error) {
+      console.log('Error saving custom food:', error);
     }
 
     const analysis = {
@@ -235,14 +273,10 @@ export default function LogFoodScreen() {
     setManualMealType(MEAL_TYPES[0]);
   };
 
-  const getTabData = (): SuggestionItem[] => {
+  const getTabData = (): any[] => {
     switch (activeTab) {
       case 'My foods':
         return myFoods;
-      case 'My meals':
-        return [];
-      case 'Saved foods':
-        return savedFoods;
       case 'All':
       default:
         return suggestions;
@@ -250,13 +284,12 @@ export default function LogFoodScreen() {
   };
 
   const displayList = (() => {
-    if (activeTab === 'My meals') return [];
     const tabData = getTabData();
     if (!searchQuery.trim()) return tabData;
     // When searching within a tab, filter locally for non-All tabs
     if (activeTab !== 'All') {
       const query = searchQuery.trim().toLowerCase();
-      return tabData.filter((item) =>
+      return tabData.filter((item: any) =>
         item.food_name?.toLowerCase().includes(query)
       );
     }
@@ -268,24 +301,30 @@ export default function LogFoodScreen() {
     switch (activeTab) {
       case 'My foods':
         return t('food.myFoods', { defaultValue: 'My Foods' });
-      case 'My meals':
-        return t('food.myMeals', { defaultValue: 'My Meals' });
-      case 'Saved foods':
-        return t('food.savedFoods', { defaultValue: 'Saved Foods' });
       case 'All':
       default:
         return t('food.suggestions', { defaultValue: 'Suggestions' });
     }
   })();
 
-  const renderFoodItem = ({ item }: { item: SuggestionItem }) => (
-    <FoodSearchItem
-      name={item.food_name}
-      calories={item.calories}
-      serving={item.serving_size ? `${item.serving_size} serving` : '1 serving'}
-      onAdd={() => handleAddFood(item)}
-    />
-  );
+  const renderFoodItem = ({ item }: { item: any }) => {
+    // Check if this is a food log or a suggestion
+    const isFoodLog = item.consumed_at || item.total_calories !== undefined;
+    const displayCalories = isFoodLog ? (item.total_calories || item.calories) : item.calories;
+    const displayServing = isFoodLog 
+      ? `${item.servings_consumed || 1} serving${(item.servings_consumed || 1) > 1 ? 's' : ''}`
+      : (item.serving_size ? `${item.serving_size} serving` : '1 serving');
+    
+    return (
+      <FoodSearchItem
+        name={item.food_name}
+        calories={displayCalories}
+        serving={displayServing}
+        onAdd={() => handleAddFood(item)}
+        imageUri={isFoodLog ? item.image_path : undefined}
+      />
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

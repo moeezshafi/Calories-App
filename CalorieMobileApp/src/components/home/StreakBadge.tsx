@@ -11,7 +11,7 @@ export default function StreakBadge({ count }: Props) {
 
   return (
     <View style={styles.badge}>
-      <Text style={styles.fireIcon}>{'\uD83D\uDD25'}</Text>
+      <Ionicons name="flame" size={16} color={colors.warning} style={styles.fireIcon} />
       <Text style={styles.count}>{count}</Text>
     </View>
   );

@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     height: 56,
     paddingHorizontal: spacing.base,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
   },
   left: {
     width: 40,
@@ -67,9 +67,10 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     textAlign: 'center',
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
     color: colors.textPrimary,
+    paddingHorizontal: spacing.xs,
   },
   placeholder: {
     width: 40,

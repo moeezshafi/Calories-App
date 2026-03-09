@@ -5,11 +5,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
 import Card from '../../components/common/Card';
 import api from '../../services/api';
 import * as mealPlansService from '../../services/mealPlans';
 import { formatDate } from '../../utils/date';
+import CopyMealPlanModal from './CopyMealPlanModal';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 type MealType = typeof MEAL_TYPES[number];
@@ -31,13 +34,13 @@ interface DayPlan {
   meals: MealItem[];
 }
 
-const getMealTypeIcon = (type: MealType): string => {
+const getMealTypeIcon = (type: MealType): keyof typeof Ionicons.glyphMap => {
   switch (type) {
-    case 'breakfast': return '\uD83C\uDF73';
-    case 'lunch': return '\uD83C\uDF5B';
-    case 'dinner': return '\uD83C\uDF57';
-    case 'snack': return '\uD83C\uDF4E';
-    default: return '\uD83C\uDF7D\uFE0F';
+    case 'breakfast': return 'cafe';
+    case 'lunch': return 'fast-food';
+    case 'dinner': return 'restaurant';
+    case 'snack': return 'nutrition';
+    default: return 'restaurant';
   }
 };
 
@@ -56,6 +59,7 @@ const getWeekDatesForMonday = (): Date[] => {
 
 export default function MealPlanScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(0);
@@ -231,6 +235,49 @@ export default function MealPlanScreen() {
     );
   };
 
+  const handleLoadTemplate = () => {
+    setShowTemplateModal(true);
+  };
+
+  const handleCopyToDay = async (targetDayIndex: number) => {
+    const sourceDateStr = formatDate(weekDates[selectedDay]);
+    const targetDateStr = formatDate(weekDates[targetDayIndex]);
+    const sourceMeals = weekPlans[sourceDateStr] || [];
+
+    if (sourceMeals.length === 0) {
+      Alert.alert(
+        t('common.error', { defaultValue: 'Error' }),
+        t('meals.noMealsToCopy', { defaultValue: 'No meals to copy from this day.' }),
+      );
+      return;
+    }
+
+    try {
+      // Create meal plan entries for target day
+      const mealsToCreate = sourceMeals.map(meal => ({
+        meal_type: meal.meal_type,
+        food_name: meal.food_name,
+        calories: meal.calories,
+        protein: meal.protein,
+        carbs: meal.carbs,
+        fats: meal.fats,
+      }));
+
+      await mealPlansService.createMealPlan(targetDateStr, mealsToCreate);
+      await fetchPlans();
+      
+      Alert.alert(
+        t('common.success', { defaultValue: 'Success' }),
+        t('meals.mealsCopied', { defaultValue: 'Meals copied successfully!' }),
+      );
+    } catch (e: any) {
+      Alert.alert(
+        t('common.error', { defaultValue: 'Error' }),
+        e?.userMessage || t('meals.copyFailed', { defaultValue: 'Could not copy meals. Please try again.' }),
+      );
+    }
+  };
+
   // Current day data
   const currentDateStr = formatDate(weekDates[selectedDay]);
   const dayMeals = weekPlans[currentDateStr] || [];
@@ -263,10 +310,20 @@ export default function MealPlanScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header */}
-        <Text style={styles.title}>
-          {t('meals.title', { defaultValue: 'Meal Plan' })}
-        </Text>
+        {/* Header with Back Button */}
+        <View style={styles.headerContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.title}>
+            {t('meals.title', { defaultValue: 'Meal Plan' })}
+          </Text>
+          <View style={styles.backButton} />
+        </View>
 
         {/* Day Tabs */}
         <ScrollView
@@ -340,18 +397,24 @@ export default function MealPlanScreen() {
                 onPress={handleSaveAsTemplate}
                 activeOpacity={0.7}
               >
-                <Text style={styles.saveTemplateBtnText}>
-                  💾 {t('meals.saveAsTemplate', { defaultValue: 'Save as Template' })}
-                </Text>
+                <View style={styles.buttonRow}>
+                  <Ionicons name="save" size={16} color={colors.primary} />
+                  <Text style={styles.saveTemplateBtnText}>
+                    {t('meals.saveAsTemplate', { defaultValue: 'Save as Template' })}
+                  </Text>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.saveTemplateBtn, { marginTop: spacing.sm }]}
                 onPress={() => setShowCopyModal(true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.saveTemplateBtnText}>
-                  📋 {t('meals.copyToAnotherDay', { defaultValue: 'Copy to Another Day' })}
-                </Text>
+                <View style={styles.buttonRow}>
+                  <Ionicons name="copy" size={16} color={colors.primary} />
+                  <Text style={styles.saveTemplateBtnText}>
+                    {t('meals.copyToAnotherDay', { defaultValue: 'Copy to Another Day' })}
+                  </Text>
+                </View>
               </TouchableOpacity>
             </>
           )}
@@ -361,7 +424,7 @@ export default function MealPlanScreen() {
             activeOpacity={0.7}
           >
             <Text style={[styles.saveTemplateBtnText, { color: colors.accent }]}>
-              📂 {t('meals.loadTemplate', { defaultValue: 'Load Template' })}
+              {t('meals.loadTemplate', { defaultValue: 'Load Template' })}
             </Text>
           </TouchableOpacity>
         </Card>
@@ -377,7 +440,7 @@ export default function MealPlanScreen() {
             return (
               <Card key={type} style={styles.mealSection}>
                 <View style={styles.mealSectionHeader}>
-                  <Text style={styles.mealSectionIcon}>{getMealTypeIcon(type)}</Text>
+                  <Ionicons name={getMealTypeIcon(type)} size={20} color={colors.primary} style={styles.mealSectionIcon} />
                   <Text style={styles.mealSectionTitle}>{mealTypeLabels[type]}</Text>
                 </View>
 
@@ -438,9 +501,12 @@ export default function MealPlanScreen() {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {getMealTypeIcon(modalMealType)} {mealTypeLabels[modalMealType]}
-              </Text>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name={getMealTypeIcon(modalMealType)} size={24} color={colors.primary} />
+                <Text style={styles.modalTitle}>
+                  {mealTypeLabels[modalMealType]}
+                </Text>
+              </View>
               <TouchableOpacity onPress={() => setShowModal(false)}>
                 <Text style={styles.modalClose}>X</Text>
               </TouchableOpacity>
@@ -533,6 +599,15 @@ export default function MealPlanScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Copy Meal Plan Modal */}
+      <CopyMealPlanModal
+        visible={showCopyModal}
+        onClose={() => setShowCopyModal(false)}
+        onSelectDay={handleCopyToDay}
+        currentDayIndex={selectedDay}
+        weekDates={weekDates}
+      />
     </SafeAreaView>
   );
 }
@@ -546,13 +621,26 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     alignItems: 'center',
   },
-  title: {
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     paddingBottom: spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: typography.sizes['2xl'],
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
   },
 
   // ---- Day Tabs ----
@@ -693,6 +781,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary + '15',
     alignItems: 'center',
   },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   saveTemplateBtnText: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold,
@@ -740,6 +833,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     marginBottom: spacing.base,
+  },
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
   },
   modalTitle: {
     fontSize: typography.sizes.lg,

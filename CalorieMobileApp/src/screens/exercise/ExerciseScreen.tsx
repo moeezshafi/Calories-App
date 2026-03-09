@@ -5,9 +5,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
 import Card from '../../components/common/Card';
 import api from '../../services/api';
+import * as exercisesService from '../../services/exercises';
 import { formatDate } from '../../utils/date';
 
 interface ExerciseLog {
@@ -19,16 +22,17 @@ interface ExerciseLog {
 }
 
 const QUICK_EXERCISES = [
-  { type: 'walking', icon: '\uD83D\uDEB6', name: 'Walking' },
-  { type: 'running', icon: '\uD83C\uDFC3', name: 'Running' },
-  { type: 'cycling', icon: '\uD83D\uDEB4', name: 'Cycling' },
-  { type: 'swimming', icon: '\uD83C\uDFCA', name: 'Swimming' },
-  { type: 'gym', icon: '\uD83C\uDFCB\uFE0F', name: 'Gym' },
-  { type: 'yoga', icon: '\uD83E\uDDD8', name: 'Yoga' },
+  { type: 'walking', icon: 'walk', name: 'Walking' },
+  { type: 'running', icon: 'fitness', name: 'Running' },
+  { type: 'cycling', icon: 'bicycle', name: 'Cycling' },
+  { type: 'swimming', icon: 'water', name: 'Swimming' },
+  { type: 'gym', icon: 'barbell', name: 'Gym' },
+  { type: 'yoga', icon: 'body', name: 'Yoga' },
 ];
 
 export default function ExerciseScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exercises, setExercises] = useState<ExerciseLog[]>([]);
@@ -44,8 +48,8 @@ export default function ExerciseScreen() {
 
   const fetchExercises = useCallback(async () => {
     try {
-      const res = await api.get('/api/exercises/logs', { params: { date: todayStr } });
-      const logs = res?.data?.data?.logs || res?.data?.logs || res?.data || [];
+      const res = await exercisesService.getExerciseLogs(todayStr);
+      const logs = res?.data?.logs || res?.logs || res?.data || [];
       setExercises(Array.isArray(logs) ? logs : []);
     } catch (e) {
       console.log('Exercise fetch error:', e);
@@ -92,7 +96,7 @@ export default function ExerciseScreen() {
 
     setSaving(true);
     try {
-      await api.post('/api/exercises/log', {
+      await exercisesService.logExercise({
         exercise_type: selectedType,
         duration_minutes: duration,
         calories_burned: calories,
@@ -122,7 +126,7 @@ export default function ExerciseScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await api.delete(`/api/exercises/log/${exerciseId}`);
+              await exercisesService.deleteExerciseLog(exerciseId);
               await fetchExercises();
             } catch (e: any) {
               console.log('Exercise delete error:', e);
@@ -151,15 +155,27 @@ export default function ExerciseScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header */}
-        <Text style={styles.title}>
-          {t('exercise.title', { defaultValue: 'Exercise' })}
-        </Text>
-        <Text style={styles.dateText}>{dateDisplay}</Text>
+        {/* Header with Back Button */}
+        <View style={styles.headerContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.title}>
+              {t('exercise.title', { defaultValue: 'Exercise' })}
+            </Text>
+            <Text style={styles.dateText}>{dateDisplay}</Text>
+          </View>
+          <View style={styles.backButton} />
+        </View>
 
         {/* Total Burned */}
         <Card style={styles.summaryCard}>
-          <Text style={styles.summaryIcon}>{'\uD83D\uDD25'}</Text>
+          <Ionicons name="flame" size={36} color={colors.warning} style={styles.summaryIcon} />
           <View>
             <Text style={styles.summaryValue}>
               {totalCaloriesBurned}
@@ -183,7 +199,7 @@ export default function ExerciseScreen() {
               onPress={() => openModal(ex.type, ex.name)}
               activeOpacity={0.7}
             >
-              <Text style={styles.quickIcon}>{ex.icon}</Text>
+              <Ionicons name={ex.icon as any} size={28} color={colors.primary} style={{ marginBottom: spacing.xs }} />
               <Text style={styles.quickLabel}>
                 {t(`exercise.type.${ex.type}`, { defaultValue: ex.name })}
               </Text>
@@ -202,7 +218,7 @@ export default function ExerciseScreen() {
           </View>
         ) : exercises.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>{'\uD83C\uDFCB\uFE0F'}</Text>
+            <Ionicons name="barbell" size={48} color={colors.textTertiary} style={styles.emptyIcon} />
             <Text style={styles.emptyText}>
               {t('exercise.noExercises', { defaultValue: 'No exercises logged today.\nTap a button above to get started!' })}
             </Text>
@@ -210,7 +226,7 @@ export default function ExerciseScreen() {
         ) : (
           exercises.map((ex) => {
             const matchedEx = QUICK_EXERCISES.find((q) => q.type === ex.exercise_type);
-            const icon = matchedEx?.icon || '\uD83C\uDFCB\uFE0F';
+            const iconName = matchedEx?.icon || 'barbell';
             const name = matchedEx?.name || ex.exercise_type;
             return (
               <TouchableOpacity
@@ -219,7 +235,7 @@ export default function ExerciseScreen() {
                 activeOpacity={0.8}
               >
                 <Card style={styles.exerciseCard}>
-                  <Text style={styles.exerciseIcon}>{icon}</Text>
+                  <Ionicons name={iconName as any} size={28} color={colors.primary} style={{ marginRight: spacing.md }} />
                   <View style={styles.exerciseInfo}>
                     <Text style={styles.exerciseName}>
                       {t(`exercise.type.${ex.exercise_type}`, { defaultValue: name })}
@@ -316,19 +332,35 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     alignItems: 'center',
   },
-  title: {
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     paddingBottom: spacing.xs,
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTextContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: typography.sizes['2xl'],
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
   dateText: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.sm,
     color: colors.textSecondary,
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.md,
+    textAlign: 'center',
+    marginTop: 2,
   },
 
   // ---- Summary Card ----
@@ -384,10 +416,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...shadows.sm,
   },
-  quickIcon: {
-    fontSize: 28,
-    marginBottom: spacing.xs,
-  },
   quickLabel: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.medium,
@@ -401,10 +429,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     ...shadows.sm,
-  },
-  exerciseIcon: {
-    fontSize: 28,
-    marginRight: spacing.md,
   },
   exerciseInfo: {
     flex: 1,

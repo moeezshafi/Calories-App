@@ -203,11 +203,10 @@ export default function ProfileScreen() {
             onPress={() => navigation.navigate('PersonalDetails')}
           />
           <View style={styles.menuDivider} />
-          {/* Daily Nutrition - navigates to PersonalDetails for now (future: dedicated DailyNutrition screen) */}
           <MenuItem
             icon="nutrition-outline"
             label={t('profile.dailyNutrition', { defaultValue: 'Daily Nutrition' })}
-            onPress={() => navigation.navigate('PersonalDetails')}
+            onPress={() => navigation.navigate('NutrientInsights')}
           />
           <View style={styles.menuDivider} />
           <MenuItem

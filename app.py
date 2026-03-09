@@ -84,9 +84,33 @@ def create_app():
     with app.app_context():
         db.metadata.create_all(db.engine, checkfirst=True)
     
+    @app.route('/')
+    def index():
+        """Root endpoint - API info"""
+        return {
+            'name': 'Calorie Tracker API',
+            'version': '1.0.0',
+            'status': 'running',
+            'endpoints': '/api/*'
+        }
+    
+    @app.route('/favicon.ico')
+    def favicon():
+        """Favicon handler to prevent 404 errors"""
+        return '', 204  # No content
+    
     @app.route('/api/health')
     def health_check():
         return {'status': 'healthy', 'message': 'Calorie Detection API is running'}
+    
+    # Serve uploaded images
+    from flask import send_from_directory
+    
+    @app.route('/uploads/<path:filename>')
+    def serve_upload(filename):
+        """Serve uploaded files (images, etc.)"""
+        uploads_dir = os.path.join(app.root_path, 'uploads')
+        return send_from_directory(uploads_dir, filename)
     
     return app
 
