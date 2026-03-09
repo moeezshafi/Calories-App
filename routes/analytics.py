@@ -6,6 +6,8 @@ from models.user import User
 from models.food_log import FoodLog
 from datetime import datetime, timedelta, date
 from sqlalchemy import func, and_
+from models.weight_log import WeightLog
+from utils.cache import cache_manager, cache_key_for_user
 
 analytics_bp = Blueprint('analytics', __name__)
 
@@ -38,6 +40,7 @@ def get_daily_analytics(date_str):
         total_carbs = sum(log.total_nutrients()['carbs'] for log in food_logs)
         total_fats = sum(log.total_nutrients()['fats'] for log in food_logs)
         total_fiber = sum(log.total_nutrients()['fiber'] for log in food_logs)
+        total_sugars = sum(log.total_nutrients().get('sugars', 0) for log in food_logs)
         total_sodium = sum(log.total_nutrients()['sodium'] for log in food_logs)
         
         # Calculate meal breakdown
@@ -89,6 +92,7 @@ def get_daily_analytics(date_str):
                 'carbs': round(total_carbs, 2),
                 'fats': round(total_fats, 2),
                 'fiber': round(total_fiber, 2),
+                'sugars': round(total_sugars, 2),
                 'sodium': round(total_sodium, 2)
             },
             'macro_breakdown': macro_breakdown,
@@ -107,7 +111,7 @@ def get_daily_analytics(date_str):
 @analytics_bp.route('/weekly', methods=['GET'])
 @jwt_required()
 def get_weekly_analytics():
-    """Get weekly nutrition analytics"""
+    """Get weekly nutrition analytics with caching"""
     try:
         user_id = get_current_user_id()
         user = User.query.get(user_id)
@@ -122,6 +126,12 @@ def get_weekly_analytics():
         else:
             today = date.today()
             start_date = today - timedelta(days=today.weekday())  # Monday of current week
+        
+        # Check cache
+        cache_key = cache_key_for_user(user_id, 'analytics', 'weekly', start_date.isoformat())
+        cached_result = cache_manager.get(cache_key)
+        if cached_result:
+            return jsonify(cached_result), 200
         
         end_date = start_date + timedelta(days=6)  # Sunday
         
@@ -176,6 +186,9 @@ def get_weekly_analytics():
             'weekly_averages': weekly_averages,
             'days_logged': days_with_data
         }
+        
+        # Cache for 5 minutes
+        cache_manager.set(cache_key, response, ttl=300)
         
         return jsonify(response), 200
         
@@ -319,18 +332,24 @@ def get_summary():
             func.count(FoodLog.id)
         ).filter_by(user_id=user_id).group_by(FoodLog.meal_type).all()
         
-        # Streak calculation (consecutive days with logs)
+        # Streak calculation - single query for all logged dates in past year
         current_streak = 0
         today = date.today()
-        
-        for i in range(365):  # Check up to 1 year back
-            check_date = today - timedelta(days=i)
-            has_log = FoodLog.query.filter(
+        year_ago = today - timedelta(days=365)
+
+        logged_dates = set(
+            row[0] for row in db.session.query(
+                func.date(FoodLog.consumed_at)
+            ).filter(
                 FoodLog.user_id == user_id,
-                func.date(FoodLog.consumed_at) == check_date
-            ).first()
-            
-            if has_log:
+                func.date(FoodLog.consumed_at) >= year_ago,
+                func.date(FoodLog.consumed_at) <= today
+            ).distinct().all()
+        )
+
+        for i in range(365):
+            check_date = today - timedelta(days=i)
+            if str(check_date) in {str(d) for d in logged_dates}:
                 current_streak += 1
             else:
                 break
@@ -395,8 +414,8 @@ def get_ai_insights(date_str):
                 'insights': 'No meals logged for this date. Start tracking your meals to get personalized AI insights!'
             }), 200
         
-        # Prepare data for OpenAI
-        from services.openai_service import get_nutrition_advice
+        # Prepare data for Gemini AI
+        from services.gemini_service import get_nutrition_advice
         
         user_data = {
             'age': user.age,
@@ -537,6 +556,110 @@ def get_progress():
         
     except Exception as e:
         return jsonify({
-            'error': 'Failed to get progress analytics', 
+            'error': 'Failed to get progress analytics',
+            'details': str(e)
+        }), 500
+
+
+@analytics_bp.route('/bmi', methods=['GET'])
+@jwt_required()
+def get_bmi():
+    """Calculate and return BMI based on user profile or latest weight log"""
+    try:
+        user_id = get_current_user_id()
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        height_cm = user.height
+        if not height_cm:
+            return jsonify({'error': 'Height not set in user profile'}), 400
+
+        # Use latest weight log if available, otherwise fall back to user profile weight
+        latest_weight_log = WeightLog.query.filter_by(user_id=user_id).order_by(
+            WeightLog.logged_at.desc()
+        ).first()
+
+        weight_kg = latest_weight_log.weight_kg if latest_weight_log else user.weight
+        if not weight_kg:
+            return jsonify({'error': 'No weight data available'}), 400
+
+        height_m = height_cm / 100.0
+        bmi = round(weight_kg / (height_m * height_m), 1)
+
+        # Determine BMI category
+        if bmi < 18.5:
+            category = 'Underweight'
+        elif bmi < 25:
+            category = 'Normal weight'
+        elif bmi < 30:
+            category = 'Overweight'
+        else:
+            category = 'Obese'
+
+        return jsonify({
+            'bmi': bmi,
+            'category': category,
+            'weight_kg': weight_kg,
+            'height_cm': height_cm,
+            'weight_source': 'weight_log' if latest_weight_log else 'profile'
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'error': 'Failed to calculate BMI',
+            'details': str(e)
+        }), 500
+
+
+@analytics_bp.route('/streak', methods=['GET'])
+@jwt_required()
+def get_streak():
+    """Get the current logging streak"""
+    try:
+        user_id = get_current_user_id()
+
+        today = date.today()
+        year_ago = today - timedelta(days=365)
+
+        logged_dates = set(
+            row[0] for row in db.session.query(
+                func.date(FoodLog.consumed_at)
+            ).filter(
+                FoodLog.user_id == user_id,
+                func.date(FoodLog.consumed_at) >= year_ago,
+                func.date(FoodLog.consumed_at) <= today
+            ).distinct().all()
+        )
+
+        current_streak = 0
+        for i in range(365):
+            check_date = today - timedelta(days=i)
+            if str(check_date) in {str(d) for d in logged_dates}:
+                current_streak += 1
+            else:
+                break
+
+        # Calculate longest streak
+        longest_streak = 0
+        streak = 0
+        for i in range(365):
+            check_date = today - timedelta(days=i)
+            if str(check_date) in {str(d) for d in logged_dates}:
+                streak += 1
+                longest_streak = max(longest_streak, streak)
+            else:
+                streak = 0
+
+        return jsonify({
+            'current_streak': current_streak,
+            'longest_streak': longest_streak,
+            'total_days_logged': len(logged_dates)
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'error': 'Failed to get streak',
             'details': str(e)
         }), 500

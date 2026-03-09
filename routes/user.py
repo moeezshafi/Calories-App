@@ -5,7 +5,7 @@ from database import db
 from models.user import User
 from models.food_log import FoodLog
 from models.custom_food import CustomFood
-from utils.validators import validate_user_profile
+from utils.validators import validate_nutritional_data, validate_user_profile, sanitize_input
 
 user_bp = Blueprint('user', __name__)
 
@@ -44,10 +44,12 @@ def get_user_profile():
             }
         })
         
-        # Return both 'user' and 'profile' keys for compatibility
+        # Return standardized response format
         return jsonify({
-            'user': profile_data,
-            'profile': profile_data
+            'data': {
+                'user': profile_data,
+                'profile': profile_data
+            }
         }), 200
         
     except Exception as e:
@@ -106,17 +108,21 @@ def update_user_profile():
             
             user_data = user.to_dict()
             return jsonify({
-                'message': 'Profile updated successfully',
-                'updated_fields': updated_fields,
-                'user': user_data,
-                'profile': user_data
+                'data': {
+                    'message': 'Profile updated successfully',
+                    'updated_fields': updated_fields,
+                    'user': user_data,
+                    'profile': user_data
+                }
             }), 200
         else:
             user_data = user.to_dict()
             return jsonify({
-                'message': 'No changes detected',
-                'user': user_data,
-                'profile': user_data
+                'data': {
+                    'message': 'No changes detected',
+                    'user': user_data,
+                    'profile': user_data
+                }
             }), 200
         
     except Exception as e:
@@ -196,8 +202,8 @@ def get_user_custom_foods():
         user_id = get_current_user_id()
         
         # Get query parameters
-        category = request.args.get('category')
-        search = request.args.get('search', '').strip()
+        category = sanitize_input(request.args.get('category', ''))
+        search = sanitize_input(request.args.get('search', ''))
         sort_by = request.args.get('sort_by', 'usage_count')  # usage_count, name, created_at
         limit = min(int(request.args.get('limit', 50)), 100)
         
@@ -262,6 +268,82 @@ def get_user_preferences():
             'error': 'Failed to get preferences', 
             'details': str(e)
         }), 500
+
+@user_bp.route('/recommendations', methods=['GET'])
+@jwt_required()
+def get_recommendations():
+    """Get personalized nutrition recommendations based on user profile"""
+    try:
+        user_id = get_current_user_id()
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        cal = user.daily_calorie_goal or 2000
+        goal = user.goal_type or 'maintain'
+        diet = user.diet_type or 'none'
+
+        # Calculate macros based on diet type
+        if diet == 'keto':
+            protein_g = round(cal * 0.25 / 4)
+            carbs_g = round(cal * 0.05 / 4)
+            fat_g = round(cal * 0.70 / 9)
+        elif diet in ('vegan', 'vegetarian'):
+            protein_g = round(cal * 0.20 / 4)
+            carbs_g = round(cal * 0.55 / 4)
+            fat_g = round(cal * 0.25 / 9)
+        elif diet == 'paleo':
+            protein_g = round(cal * 0.30 / 4)
+            carbs_g = round(cal * 0.30 / 4)
+            fat_g = round(cal * 0.40 / 9)
+        else:
+            protein_g = round(cal * 0.30 / 4)
+            carbs_g = round(cal * 0.40 / 4)
+            fat_g = round(cal * 0.30 / 9)
+
+        # Projected date to reach goal
+        projected_date = None
+        if user.target_weight and user.weight:
+            diff = abs(user.target_weight - user.weight)
+            if goal == 'lose_weight':
+                weeks = diff / 0.5
+            elif goal == 'gain_weight':
+                weeks = diff / 0.3
+            else:
+                weeks = 0
+            if weeks > 0:
+                from datetime import timedelta, date
+                projected_date = (date.today() + timedelta(weeks=weeks)).isoformat()
+
+        water_ml = round((user.weight or 70) * 33)
+
+        recommendations = {
+            'daily_calories': cal,
+            'macros': {
+                'protein_g': protein_g,
+                'carbs_g': carbs_g,
+                'fat_g': fat_g,
+            },
+            'water_ml': water_ml,
+            'goal_type': goal,
+            'diet_type': diet,
+            'current_weight': user.weight,
+            'target_weight': user.target_weight,
+            'projected_goal_date': projected_date,
+            'meal_plan': {
+                'breakfast_cal': round(cal * 0.25),
+                'lunch_cal': round(cal * 0.35),
+                'dinner_cal': round(cal * 0.30),
+                'snack_cal': round(cal * 0.10),
+            },
+        }
+
+        return jsonify({'data': recommendations}), 200
+
+    except Exception as e:
+        return jsonify({'error': 'Failed to get recommendations', 'details': str(e)}), 500
+
 
 @user_bp.route('/delete-account', methods=['DELETE'])
 @jwt_required()

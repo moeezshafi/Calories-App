@@ -5,15 +5,21 @@
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "calorietracker",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4CAF50"
+      "backgroundColor": "#FFF8F0"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.calorietracker.app"
+      "bundleIdentifier": "com.calorietracker.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to analyze food and track calories.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photos to analyze food images.",
+        "NSPhotoLibraryAddUsageDescription": "This app saves food photos to your library."
+      }
     },
     "android": {
       "package": "com.calorietracker.app",
@@ -21,14 +27,39 @@
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4CAF50"
+        "backgroundColor": "#FFF8F0"
       },
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SCHEDULE_EXACT_ALARM"
       ]
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "This app uses the camera to analyze food and track calories."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This app accesses your photos to analyze food images.",
+          "cameraPermission": "This app uses the camera to take food photos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#065F46"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "46da76ee-d9fd-4618-b148-fbf8280c81c5"

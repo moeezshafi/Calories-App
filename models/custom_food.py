@@ -35,13 +35,13 @@ class CustomFood(db.Model):
         """Calculate nutrition for specific weight"""
         multiplier = weight_grams / 100.0
         return {
-            'calories': round(self.calories_per_100g * multiplier, 2),
-            'proteins': round(self.proteins_per_100g * multiplier, 2),
-            'carbs': round(self.carbs_per_100g * multiplier, 2),
-            'fats': round(self.fats_per_100g * multiplier, 2),
-            'fiber': round(self.fiber_per_100g * multiplier, 2),
-            'sodium': round(self.sodium_per_100g * multiplier, 2),
-            'sugars': round(self.sugars_per_100g * multiplier, 2),
+            'calories': round((self.calories_per_100g or 0) * multiplier, 2),
+            'proteins': round((self.proteins_per_100g or 0) * multiplier, 2),
+            'carbs': round((self.carbs_per_100g or 0) * multiplier, 2),
+            'fats': round((self.fats_per_100g or 0) * multiplier, 2),
+            'fiber': round((self.fiber_per_100g or 0) * multiplier, 2),
+            'sodium': round((self.sodium_per_100g or 0) * multiplier, 2),
+            'sugars': round((self.sugars_per_100g or 0) * multiplier, 2),
             'weight_grams': weight_grams
         }
     

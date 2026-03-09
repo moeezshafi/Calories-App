@@ -45,13 +45,13 @@ class FoodLog(db.Model):
         """Calculate total nutrients consumed"""
         multiplier = self.servings_consumed
         return {
-            'calories': self.calories * multiplier,
-            'proteins': self.proteins * multiplier,
-            'carbs': self.carbs * multiplier,
-            'fats': self.fats * multiplier,
-            'fiber': self.fiber * multiplier,
-            'sodium': self.sodium * multiplier,
-            'sugars': self.sugars * multiplier
+            'calories': (self.calories or 0) * multiplier,
+            'proteins': (self.proteins or 0) * multiplier,
+            'carbs': (self.carbs or 0) * multiplier,
+            'fats': (self.fats or 0) * multiplier,
+            'fiber': (self.fiber or 0) * multiplier,
+            'sodium': (self.sodium or 0) * multiplier,
+            'sugars': (self.sugars or 0) * multiplier
         }
     
     def to_dict(self):

@@ -1,12 +1,26 @@
 import re
 from email_validator import validate_email as email_validate, EmailNotValidError
 
+# Common weak passwords to reject
+COMMON_PASSWORDS = {
+    'password', 'password123', '123456', '12345678', 'qwerty', 'abc123',
+    'monkey', '1234567', 'letmein', 'trustno1', 'dragon', 'baseball',
+    'iloveyou', 'master', 'sunshine', 'ashley', 'bailey', 'passw0rd',
+    'shadow', '123123', '654321', 'superman', 'qazwsx', 'michael',
+    'football', 'welcome', 'jesus', 'ninja', 'mustang', 'password1'
+}
+
 def validate_email(email):
     """Validate email format"""
+    if not email:
+        return False
     try:
-        email_validate(email)
+        # Validate and normalize the email
+        valid = email_validate(email, check_deliverability=False)
         return True
     except EmailNotValidError:
+        return False
+    except Exception:
         return False
 
 def validate_password(password):
@@ -17,11 +31,19 @@ def validate_password(password):
     - At least one uppercase letter
     - At least one lowercase letter  
     - At least one digit
+    - At least one special character
+    - Not a common password
     """
     if len(password) < 8:
         return {
             'valid': False,
             'message': 'Password must be at least 8 characters long'
+        }
+    
+    if len(password) > 128:
+        return {
+            'valid': False,
+            'message': 'Password must be less than 128 characters'
         }
     
     if not re.search(r'[A-Z]', password):
@@ -42,10 +64,75 @@ def validate_password(password):
             'message': 'Password must contain at least one digit'
         }
     
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return {
+            'valid': False,
+            'message': 'Password must contain at least one special character (!@#$%^&*(),.?":{}|<>)'
+        }
+    
+    # Check for sequential characters (4 or more in a row for stricter validation)
+    lower_pass = password.lower()
+    has_sequential = False
+    for i in range(len(lower_pass) - 3):
+        # Check numeric sequences (4+ digits)
+        if lower_pass[i:i+4].isdigit():
+            if (ord(lower_pass[i+1]) == ord(lower_pass[i]) + 1 and 
+                ord(lower_pass[i+2]) == ord(lower_pass[i+1]) + 1 and
+                ord(lower_pass[i+3]) == ord(lower_pass[i+2]) + 1):
+                has_sequential = True
+                break
+        # Check alphabetic sequences (4+ letters)
+        elif lower_pass[i:i+4].isalpha():
+            if (ord(lower_pass[i+1]) == ord(lower_pass[i]) + 1 and 
+                ord(lower_pass[i+2]) == ord(lower_pass[i+1]) + 1 and
+                ord(lower_pass[i+3]) == ord(lower_pass[i+2]) + 1):
+                has_sequential = True
+                break
+    
+    if has_sequential:
+        return {
+            'valid': False,
+            'message': 'Password contains sequential characters. Please choose a stronger password'
+        }
+    
+    # Check against common passwords (strip special characters for comparison)
+    password_alphanumeric = re.sub(r'[^a-z0-9]', '', password.lower())
+    if password.lower() in COMMON_PASSWORDS or password_alphanumeric in COMMON_PASSWORDS:
+        return {
+            'valid': False,
+            'message': 'Password is too common. Please choose a stronger password'
+        }
+    
     return {
         'valid': True,
-        'message': 'Password is valid'
+        'message': 'Password is valid',
+        'strength': calculate_password_strength(password)
     }
+
+def calculate_password_strength(password):
+    """
+    Calculate password strength score (0-100)
+    """
+    score = 0
+    
+    # Length score (max 30 points)
+    score += min(len(password) * 2, 30)
+    
+    # Character variety (max 40 points)
+    if re.search(r'[a-z]', password):
+        score += 10
+    if re.search(r'[A-Z]', password):
+        score += 10
+    if re.search(r'\d', password):
+        score += 10
+    if re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        score += 10
+    
+    # Complexity bonus (max 30 points)
+    unique_chars = len(set(password))
+    score += min(unique_chars * 2, 30)
+    
+    return min(score, 100)
 
 def validate_nutritional_data(data):
     """Validate nutritional data input"""
@@ -157,4 +244,83 @@ def validate_user_profile(data):
     return {
         'valid': len(errors) == 0,
         'errors': errors
+    }
+
+
+def sanitize_input(text, max_length=255):
+    """
+    Sanitize user input to prevent SQL injection and XSS
+    """
+    if not text:
+        return ''
+    
+    # Convert to string
+    text = str(text)
+    
+    # Trim to max length
+    text = text[:max_length]
+    
+    # Remove null bytes
+    text = text.replace('\x00', '')
+    
+    # Strip leading/trailing whitespace
+    text = text.strip()
+    
+    return text
+
+def sanitize_html(text):
+    """
+    Remove HTML tags and escape special characters
+    """
+    if not text:
+        return ''
+    
+    import html
+    # Escape HTML special characters
+    text = html.escape(str(text))
+    
+    # Remove any remaining HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    return text
+
+def validate_file_upload(file, allowed_extensions=None, max_size_mb=16):
+    """
+    Validate uploaded file
+    """
+    if allowed_extensions is None:
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    
+    errors = []
+    
+    # Check if file exists
+    if not file or not file.filename:
+        errors.append('No file provided')
+        return {'valid': False, 'errors': errors}
+    
+    # Check file extension
+    if '.' not in file.filename:
+        errors.append('File has no extension')
+    else:
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        if ext not in allowed_extensions:
+            errors.append(f'File type .{ext} not allowed. Allowed types: {", ".join(allowed_extensions)}')
+    
+    # Check file size
+    file.seek(0, 2)  # Seek to end
+    size = file.tell()
+    file.seek(0)  # Reset to beginning
+    
+    max_size_bytes = max_size_mb * 1024 * 1024
+    if size > max_size_bytes:
+        errors.append(f'File size {size / 1024 / 1024:.2f}MB exceeds maximum {max_size_mb}MB')
+    
+    if size == 0:
+        errors.append('File is empty')
+    
+    return {
+        'valid': len(errors) == 0,
+        'errors': errors,
+        'size': size,
+        'extension': file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else None
     }

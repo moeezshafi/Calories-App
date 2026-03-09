@@ -1,11 +1,18 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime
 from database import db
 from models.user import User
+from models.refresh_token import RefreshToken
 from utils.validators import validate_email, validate_password
+from utils.error_handlers import error_response, success_response
+from utils.constants import *
 
 auth_bp = Blueprint('auth', __name__)
+
+# Get limiter from app
+def get_limiter():
+    return current_app.extensions.get('limiter')
 
 @auth_bp.route('/test', methods=['GET'])
 def test():
@@ -59,11 +66,25 @@ def register():
         # Create access token (convert user.id to string for JWT)
         access_token = create_access_token(identity=str(user.id))
         
-        return jsonify({
-            'message': 'User registered successfully',
-            'access_token': access_token,
-            'user': user.to_dict()
-        }), 201
+        # Create refresh token
+        refresh_token = RefreshToken(
+            user_id=user.id,
+            device_info=request.headers.get('User-Agent'),
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        db.session.add(refresh_token)
+        db.session.commit()
+        
+        return success_response(
+            SUCCESS_REGISTRATION,
+            {
+                'access_token': access_token,
+                'refresh_token': refresh_token.token,
+                'user': user.to_dict()
+            },
+            HTTP_CREATED
+        )
         
     except Exception as e:
         db.session.rollback()
@@ -85,85 +106,147 @@ def login():
             print("ERROR: Missing email or password")
             return jsonify({'error': 'Missing email or password'}), 400
         
-        # Find user by email
-        user = User.query.filter_by(email=data['email'].lower().strip()).first()
+        # Find user by email - handle potential session issues
+        try:
+            user = User.query.filter_by(email=data['email'].lower().strip()).first()
+        except Exception as query_error:
+            print(f"Query error: {str(query_error)}")
+            # If there's a session issue, rollback and retry
+            db.session.rollback()
+            user = User.query.filter_by(email=data['email'].lower().strip()).first()
+        
         print(f"User found: {user is not None}")
         
-        if not user or not user.check_password(data['password']):
-            print("ERROR: Invalid credentials")
+        if not user:
+            print("ERROR: User not found")
+            return jsonify({'error': 'Invalid email or password'}), 401
+        
+        if not user.check_password(data['password']):
+            print("ERROR: Invalid password")
             return jsonify({'error': 'Invalid email or password'}), 401
         
         # Create access token (convert user.id to string for JWT)
         access_token = create_access_token(identity=str(user.id))
+        
+        # Create refresh token
+        refresh_token = RefreshToken(
+            user_id=user.id,
+            device_info=request.headers.get('User-Agent'),
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        db.session.add(refresh_token)
+        
+        # Update last login
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+        
         print(f"Login successful for user: {user.email}")
         
-        return jsonify({
-            'message': 'Login successful',
-            'access_token': access_token,
-            'user': user.to_dict()
-        }), 200
+        return success_response(
+            SUCCESS_LOGIN,
+            {
+                'access_token': access_token,
+                'refresh_token': refresh_token.token,
+                'user': user.to_dict()
+            }
+        )
         
     except Exception as e:
         print(f"EXCEPTION: {str(e)}")
         import traceback
         traceback.print_exc()
+        db.session.rollback()
         return jsonify({'error': 'Login failed', 'details': str(e)}), 500
 
-@auth_bp.route('/profile', methods=['GET'])
+@auth_bp.route('/complete-onboarding', methods=['POST'])
 @jwt_required()
-def get_profile():
-    """Get current user's profile"""
+def complete_onboarding():
+    """Save onboarding profile data and calculate daily calorie plan"""
     try:
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        return jsonify({'profile': user.to_dict()}), 200
-        
-    except Exception as e:
-        return jsonify({'error': 'Failed to get profile', 'details': str(e)}), 500
 
-@auth_bp.route('/profile', methods=['PUT'])
-@jwt_required()
-def update_profile():
-    """Update user profile"""
-    try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
-        
         if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
+            return error_response(ERROR_USER_NOT_FOUND, status_code=HTTP_NOT_FOUND)
+
         data = request.get_json()
-        
-        # Update allowed fields
-        allowed_fields = [
-            'name', 'age', 'weight', 'height', 'gender', 
-            'activity_level', 'goal_type', 'daily_calorie_goal'
+        if not data:
+            return error_response(ERROR_MISSING_FIELDS, status_code=HTTP_BAD_REQUEST)
+
+        # Update profile fields from onboarding steps
+        profile_fields = [
+            'gender', 'age', 'height', 'weight', 'target_weight',
+            'goal_type', 'activity_level', 'diet_type', 'workout_frequency'
         ]
-        
-        for field in allowed_fields:
-            if field in data:
+
+        for field in profile_fields:
+            if field in data and data[field] is not None:
                 setattr(user, field, data[field])
-        
-        # Recalculate daily calories if relevant fields changed
-        if any(field in data for field in ['weight', 'height', 'age', 'gender', 'activity_level']):
-            calculated_calories = user.calculate_daily_calories()
-            if calculated_calories and 'daily_calorie_goal' not in data:
-                user.daily_calorie_goal = calculated_calories
-        
+
+        # Calculate daily calorie goal
+        if user.weight and user.height and user.age and user.gender:
+            tdee = user.calculate_daily_calories()
+            if tdee:
+                if user.goal_type == 'lose_weight':
+                    user.daily_calorie_goal = max(1200, tdee - 500)
+                elif user.goal_type == 'gain_weight':
+                    user.daily_calorie_goal = tdee + 400
+                else:
+                    user.daily_calorie_goal = tdee
+
+        # Calculate default macro goals (protein/carbs/fat)
+        if user.daily_calorie_goal:
+            from models.user_preference import UserPreference
+            pref = UserPreference.query.filter_by(user_id=user_id).first()
+            if not pref:
+                pref = UserPreference(user_id=user_id)
+                db.session.add(pref)
+
+            cal = user.daily_calorie_goal
+            if user.diet_type == 'keto':
+                pref.protein_goal_g = round(cal * 0.25 / 4)
+                pref.carbs_goal_g = round(cal * 0.05 / 4)
+                pref.fat_goal_g = round(cal * 0.70 / 9)
+            elif user.diet_type in ('vegan', 'vegetarian'):
+                pref.protein_goal_g = round(cal * 0.20 / 4)
+                pref.carbs_goal_g = round(cal * 0.55 / 4)
+                pref.fat_goal_g = round(cal * 0.25 / 9)
+            else:
+                pref.protein_goal_g = round(cal * 0.30 / 4)
+                pref.carbs_goal_g = round(cal * 0.40 / 4)
+                pref.fat_goal_g = round(cal * 0.30 / 9)
+
+            if user.target_weight:
+                pref.goal_weight_kg = user.target_weight
+
+        user.onboarding_completed = True
         db.session.commit()
-        
-        return jsonify({
-            'message': 'Profile updated successfully',
-            'user': user.to_dict()
-        }), 200
-        
+
+        # Build macros dict for response
+        macros = None
+        if user.daily_calorie_goal:
+            pref_obj = UserPreference.query.filter_by(user_id=user_id).first()
+            if pref_obj:
+                macros = {
+                    'protein': pref_obj.protein_goal_g,
+                    'carbs': pref_obj.carbs_goal_g,
+                    'fats': pref_obj.fat_goal_g,
+                }
+
+        return success_response(
+            'Onboarding completed successfully',
+            {
+                'user': user.to_dict(),
+                'daily_calorie_goal': user.daily_calorie_goal,
+                'macros': macros,
+            }
+        )
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': 'Failed to update profile', 'details': str(e)}), 500
+        return error_response('Failed to complete onboarding', errors=str(e), status_code=HTTP_INTERNAL_SERVER_ERROR)
+
 
 @auth_bp.route('/change-password', methods=['PUT'])
 @jwt_required()
