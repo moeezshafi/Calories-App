@@ -30,12 +30,14 @@
         "backgroundColor": "#FFF8F0"
       },
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "SCHEDULE_EXACT_ALARM"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -62,7 +64,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "46da76ee-d9fd-4618-b148-fbf8280c81c5"
+        "projectId": "b6f2e9cd-0732-460c-a16b-a33a90c2bc6b"
       }
     }
   }
