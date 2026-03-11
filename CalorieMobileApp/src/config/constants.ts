@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 // Production backend URL (Hetzner server)
-const PRODUCTION_API_URL = 'http://46.62.254.185:5001';
+const PRODUCTION_API_URL = 'http://46.62.254.185';
 
 const DEV_API_URL = Platform.select({
   android: 'http://10.0.2.2:5000',      // Android emulator
