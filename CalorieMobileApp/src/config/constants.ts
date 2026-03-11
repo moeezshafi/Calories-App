@@ -8,7 +8,8 @@ const DEV_API_URL = Platform.select({
   default: 'http://192.168.100.47:5000', // iOS / physical devices
 });
 
-export const API_URL = __DEV__ ? DEV_API_URL : PRODUCTION_API_URL;
+// Force production URL for release builds
+export const API_URL = PRODUCTION_API_URL;
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 export type MealType = typeof MEAL_TYPES[number];
