@@ -14,11 +14,36 @@ auth_bp = Blueprint('auth', __name__)
 def get_limiter():
     return current_app.extensions.get('limiter')
 
+# Add OPTIONS handler for all auth routes (CORS preflight)
+@auth_bp.route('/<path:path>', methods=['OPTIONS'])
+@auth_bp.route('/register', methods=['OPTIONS'])
+@auth_bp.route('/login', methods=['OPTIONS'])
+@auth_bp.route('/complete-onboarding', methods=['OPTIONS'])
+@auth_bp.route('/change-password', methods=['OPTIONS'])
+@auth_bp.route('/test', methods=['OPTIONS'])
+def handle_options(path=None):
+    """Handle CORS preflight requests"""
+    response = jsonify({'status': 'ok'})
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH')
+    response.headers.add('Access-Control-Max-Age', '3600')
+    return response, 204
+
 @auth_bp.route('/test', methods=['GET'])
 def test():
     """Simple test endpoint"""
     print("\n=== TEST ENDPOINT HIT ===")
-    return jsonify({'message': 'Backend is reachable!', 'timestamp': str(datetime.now())}), 200
+    response = jsonify({
+        'message': 'Backend is reachable!', 
+        'timestamp': str(datetime.now()),
+        'cors_enabled': True,
+        'methods_allowed': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    })
+    # Explicitly add CORS headers
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    return response, 200
 
 @auth_bp.route('/register', methods=['POST'])
 def register():

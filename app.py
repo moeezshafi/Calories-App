@@ -39,16 +39,36 @@ def create_app():
     # Register error handlers
     register_error_handlers(app)
     
-    # CORS configuration - allow all origins and methods for mobile app compatibility
+    # CORS configuration - comprehensive setup for mobile app compatibility
+    # React Native apps don't always send Origin header, so we need special handling
     CORS(app, 
-         resources={r"/api/*": {
-             "origins": "*",
-             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization", "Accept"],
-             "expose_headers": ["Content-Type", "Authorization"],
-             "supports_credentials": False,  # Must be False when origins is "*"
-             "max_age": 3600
-         }})
+         resources={
+             r"/api/*": {
+                 "origins": "*",
+                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+                 "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+                 "expose_headers": ["Content-Type", "Authorization"],
+                 "supports_credentials": False,
+                 "max_age": 3600,
+                 "send_wildcard": True,  # Send * instead of echoing Origin
+                 "always_send": True  # Always send CORS headers
+             }
+         })
+    
+    # Add after_request handler for additional CORS headers (for React Native)
+    @app.after_request
+    def after_request(response):
+        # Always add CORS headers for mobile app compatibility
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        
+        # Handle OPTIONS requests
+        if app.config.get('ENV') != 'production':
+            response.headers.add('Access-Control-Allow-Credentials', 'false')
+        
+        return response
     
     # Import and register blueprints
     from routes.auth import auth_bp
