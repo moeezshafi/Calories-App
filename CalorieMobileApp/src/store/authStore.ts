@@ -25,12 +25,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const token = await AsyncStorage.getItem('token');
       if (token) {
-        const user = await authService.getProfile(token);
-        set({ user, token, isAuthenticated: true, isLoading: false });
+        try {
+          const user = await authService.getProfile(token);
+          set({ user, token, isAuthenticated: true, isLoading: false });
+        } catch (error) {
+          // Token is invalid or server is unreachable, clear it
+          console.log('Failed to load profile, clearing token:', error);
+          await AsyncStorage.removeItem('token');
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+        }
       } else {
         set({ isLoading: false });
       }
-    } catch {
+    } catch (error) {
+      console.log('Error in loadAuth:', error);
       await AsyncStorage.removeItem('token');
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
     }

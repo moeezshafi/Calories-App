@@ -2,10 +2,18 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config/constants';
 
+console.log('API Configuration:', {
+  baseURL: API_URL,
+  timestamp: new Date().toISOString(),
+});
+
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
 });
 
 api.interceptors.request.use(async (config) => {
@@ -13,12 +21,32 @@ api.interceptors.request.use(async (config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  console.log('API Request:', {
+    method: config.method,
+    url: config.url,
+    baseURL: config.baseURL,
+    fullURL: `${config.baseURL}${config.url}`,
+  });
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('API Response Success:', {
+      url: response.config.url,
+      status: response.status,
+    });
+    return response;
+  },
   async (error) => {
+    console.log('API Response Error:', {
+      url: error.config?.url,
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+
     if (error.response?.status === 401) {
       await AsyncStorage.removeItem('token');
     }

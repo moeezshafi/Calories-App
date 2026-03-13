@@ -39,11 +39,16 @@ def create_app():
     # Register error handlers
     register_error_handlers(app)
     
-    # CORS configuration - restrict origins in production
-    allowed_origins = Config.ALLOWED_ORIGINS if hasattr(Config, 'ALLOWED_ORIGINS') else ["*"]
-    if not app.debug and allowed_origins == ["*"]:
-        app.logger.warning("CORS is set to allow all origins. Set ALLOWED_ORIGINS in production.")
-    CORS(app, resources={r"/api/*": {"origins": allowed_origins}}, supports_credentials=True)
+    # CORS configuration - allow all origins and methods for mobile app compatibility
+    CORS(app, 
+         resources={r"/api/*": {
+             "origins": "*",
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+             "allow_headers": ["Content-Type", "Authorization", "Accept"],
+             "expose_headers": ["Content-Type", "Authorization"],
+             "supports_credentials": False,  # Must be False when origins is "*"
+             "max_age": 3600
+         }})
     
     # Import and register blueprints
     from routes.auth import auth_bp
