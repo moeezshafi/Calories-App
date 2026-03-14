@@ -325,19 +325,27 @@ export default function RecipeBuilderScreen() {
         transparent={false}
         onRequestClose={() => setShowEditor(false)}
       >
-        <SafeAreaView style={styles.editorContainer} edges={['top']}>
+        <View style={styles.modalContainer}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
           >
-            {/* Editor Header - Using Header component for consistency */}
-            <Header
-              title={editingRecipeId 
-                ? t('recipes.editRecipe', { defaultValue: 'Edit Recipe' })
-                : t('recipes.newRecipe', { defaultValue: 'New Recipe' })}
-              showBack={true}
-              onBack={() => setShowEditor(false)}
-            />
+            {/* Editor Header */}
+            <View style={styles.editorHeader}>
+              <TouchableOpacity 
+                onPress={() => setShowEditor(false)}
+                style={styles.editorBackButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
+              </TouchableOpacity>
+              <Text style={styles.editorTitle}>
+                {editingRecipeId 
+                  ? t('recipes.editRecipe', { defaultValue: 'Edit Recipe' })
+                  : t('recipes.newRecipe', { defaultValue: 'New Recipe' })}
+              </Text>
+              <View style={styles.editorHeaderRight} />
+            </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.editorScroll}>
               {/* Recipe Name */}
@@ -569,7 +577,7 @@ export default function RecipeBuilderScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -689,9 +697,41 @@ const styles = StyleSheet.create({
   },
 
   // ---- Editor ----
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+  },
   editorContainer: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  editorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 56,
+    paddingHorizontal: spacing.base,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  editorBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  editorTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+    paddingHorizontal: spacing.sm,
+  },
+  editorHeaderRight: {
+    width: 40,
   },
   editorScroll: {
     flex: 1,
