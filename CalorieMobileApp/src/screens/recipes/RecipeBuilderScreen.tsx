@@ -330,23 +330,14 @@ export default function RecipeBuilderScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
           >
-            {/* Editor Header */}
-            <View style={styles.editorHeader}>
-              <TouchableOpacity 
-                onPress={() => setShowEditor(false)}
-                style={styles.editorCancelButton}
-              >
-                <Text style={styles.editorCancel}>
-                  {t('common.cancel', { defaultValue: 'Cancel' })}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.editorTitle}>
-                {editingRecipeId 
-                  ? t('recipes.editRecipe', { defaultValue: 'Edit Recipe' })
-                  : t('recipes.newRecipe', { defaultValue: 'New Recipe' })}
-              </Text>
-              <View style={styles.editorHeaderRight} />
-            </View>
+            {/* Editor Header - Using Header component for consistency */}
+            <Header
+              title={editingRecipeId 
+                ? t('recipes.editRecipe', { defaultValue: 'Edit Recipe' })
+                : t('recipes.newRecipe', { defaultValue: 'New Recipe' })}
+              showBack={true}
+              onBack={() => setShowEditor(false)}
+            />
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.editorScroll}>
               {/* Recipe Name */}
@@ -701,35 +692,6 @@ const styles = StyleSheet.create({
   editorContainer: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  editorHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 56,
-    paddingHorizontal: spacing.base,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-    backgroundColor: colors.background,
-  },
-  editorCancelButton: {
-    width: 60,
-    height: 40,
-    justifyContent: 'center',
-  },
-  editorCancel: {
-    fontSize: typography.sizes.base,
-    color: colors.primary,
-    fontWeight: typography.weights.medium,
-  },
-  editorTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-  },
-  editorHeaderRight: {
-    width: 60,
   },
   editorScroll: {
     flex: 1,

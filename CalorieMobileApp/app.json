@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.calorietracker.app",
-      "versionCode": 4,
+      "versionCode": 5,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -39,8 +39,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.INTERNET"
-      ],
-      "usesCleartextTraffic": true
+      ]
     },
     "plugins": [
       [

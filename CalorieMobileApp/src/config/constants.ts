@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
-// Production backend URL (Hetzner server)
-const PRODUCTION_API_URL = 'http://46.62.254.185';
+// Production backend URL (Hetzner server with domain)
+const PRODUCTION_API_URL = 'https://calories.saadzaheer.com';
 
 const DEV_API_URL = Platform.select({
   android: 'http://10.0.2.2:5000',      // Android emulator
