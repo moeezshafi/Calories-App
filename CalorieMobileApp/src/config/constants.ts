@@ -3,12 +3,9 @@ import { Platform } from 'react-native';
 // Production backend URL (Hetzner server with domain)
 const PRODUCTION_API_URL = 'https://calories.saadzaheer.com';
 
-const DEV_API_URL = Platform.select({
-  android: 'http://10.0.2.2:5000',      // Android emulator
-  default: 'http://192.168.100.47:5000', // iOS / physical devices
-});
+const DEV_API_URL = 'https://calories.saadzaheer.com'; // Using production for testing
 
-// Force production URL for release builds
+// Use production URL for all builds
 export const API_URL = PRODUCTION_API_URL;
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
